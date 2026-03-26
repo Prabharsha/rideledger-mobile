@@ -1,0 +1,29 @@
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+FuelLogModel _$FuelLogModelFromJson(Map<String, dynamic> json) => FuelLogModel()
+  ..id = (json['id'] as num?)?.toInt()
+  ..fuelLogId = json['fuelLogId'] as String
+  ..date = DateTime.parse(json['date'] as String)
+  ..odometerKm = (json['odometerKm'] as num).toDouble()
+  ..litersAdded = (json['litersAdded'] as num).toDouble()
+  ..pricePerLiter = (json['pricePerLiter'] as num?)?.toDouble()
+  ..totalCost = (json['totalCost'] as num?)?.toDouble()
+  ..note = json['note'] as String?
+  ..createdAt = DateTime.parse(json['createdAt'] as String)
+  ..updatedAt = DateTime.parse(json['updatedAt'] as String);
+
+Map<String, dynamic> _$FuelLogModelToJson(FuelLogModel instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'fuelLogId': instance.fuelLogId,
+      'date': instance.date.toIso8601String(),
+      'odometerKm': instance.odometerKm,
+      'litersAdded': instance.litersAdded,
+      'pricePerLiter': instance.pricePerLiter,
+      'totalCost': instance.totalCost,
+      'note': instance.note,
+      'createdAt': instance.createdAt.toIso8601String(),
+      'updatedAt': instance.updatedAt.toIso8601String(),
+    };

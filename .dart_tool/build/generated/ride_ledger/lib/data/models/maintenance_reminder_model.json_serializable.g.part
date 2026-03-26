@@ -1,0 +1,32 @@
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+MaintenanceReminderModel _$MaintenanceReminderModelFromJson(
+        Map<String, dynamic> json) =>
+    MaintenanceReminderModel()
+      ..id = (json['id'] as num?)?.toInt()
+      ..reminderId = json['reminderId'] as String
+      ..type = json['type'] as String
+      ..dueAtKm = (json['dueAtKm'] as num).toDouble()
+      ..completed = json['completed'] as bool
+      ..completedAt = json['completedAt'] == null
+          ? null
+          : DateTime.parse(json['completedAt'] as String)
+      ..notes = json['notes'] as String?
+      ..createdAt = DateTime.parse(json['createdAt'] as String)
+      ..updatedAt = DateTime.parse(json['updatedAt'] as String);
+
+Map<String, dynamic> _$MaintenanceReminderModelToJson(
+        MaintenanceReminderModel instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'reminderId': instance.reminderId,
+      'type': instance.type,
+      'dueAtKm': instance.dueAtKm,
+      'completed': instance.completed,
+      'completedAt': instance.completedAt?.toIso8601String(),
+      'notes': instance.notes,
+      'createdAt': instance.createdAt.toIso8601String(),
+      'updatedAt': instance.updatedAt.toIso8601String(),
+    };

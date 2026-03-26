@@ -1,0 +1,50 @@
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+BikeProfileModel _$BikeProfileModelFromJson(Map<String, dynamic> json) =>
+    BikeProfileModel()
+      ..id = (json['id'] as num).toInt()
+      ..bikeModel = json['bikeModel'] as String
+      ..rebuildDate = DateTime.parse(json['rebuildDate'] as String)
+      ..rebuildStartOdometerKm =
+          (json['rebuildStartOdometerKm'] as num).toDouble()
+      ..firstOilChangeKm = (json['firstOilChangeKm'] as num).toDouble()
+      ..secondOilChangeKm = (json['secondOilChangeKm'] as num).toDouble()
+      ..breakInProfile = json['breakInProfile'] as String
+      ..officeOneWayDistanceKm =
+          (json['officeOneWayDistanceKm'] as num).toDouble()
+      ..officeDaysPerWeek = (json['officeDaysPerWeek'] as num).toInt()
+      ..weeklyFuelQuotaLiters =
+          (json['weeklyFuelQuotaLiters'] as num).toDouble()
+      ..weeklyFuelBalanceLiters =
+          (json['weeklyFuelBalanceLiters'] as num).toDouble()
+      ..weeklyResetDate = DateTime.parse(json['weeklyResetDate'] as String)
+      ..manualFuelEconomyKmPerLiter =
+          (json['manualFuelEconomyKmPerLiter'] as num).toDouble()
+      ..targetFuelEconomyKmPerLiter =
+          (json['targetFuelEconomyKmPerLiter'] as num).toDouble()
+      ..isFirstLaunch = json['isFirstLaunch'] as bool
+      ..createdAt = DateTime.parse(json['createdAt'] as String)
+      ..updatedAt = DateTime.parse(json['updatedAt'] as String);
+
+Map<String, dynamic> _$BikeProfileModelToJson(BikeProfileModel instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'bikeModel': instance.bikeModel,
+      'rebuildDate': instance.rebuildDate.toIso8601String(),
+      'rebuildStartOdometerKm': instance.rebuildStartOdometerKm,
+      'firstOilChangeKm': instance.firstOilChangeKm,
+      'secondOilChangeKm': instance.secondOilChangeKm,
+      'breakInProfile': instance.breakInProfile,
+      'officeOneWayDistanceKm': instance.officeOneWayDistanceKm,
+      'officeDaysPerWeek': instance.officeDaysPerWeek,
+      'weeklyFuelQuotaLiters': instance.weeklyFuelQuotaLiters,
+      'weeklyFuelBalanceLiters': instance.weeklyFuelBalanceLiters,
+      'weeklyResetDate': instance.weeklyResetDate.toIso8601String(),
+      'manualFuelEconomyKmPerLiter': instance.manualFuelEconomyKmPerLiter,
+      'targetFuelEconomyKmPerLiter': instance.targetFuelEconomyKmPerLiter,
+      'isFirstLaunch': instance.isFirstLaunch,
+      'createdAt': instance.createdAt.toIso8601String(),
+      'updatedAt': instance.updatedAt.toIso8601String(),
+    };

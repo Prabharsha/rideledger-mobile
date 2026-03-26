@@ -1,0 +1,66 @@
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+NotificationScheduleModel _$NotificationScheduleModelFromJson(
+        Map<String, dynamic> json) =>
+    NotificationScheduleModel()
+      ..id = (json['id'] as num?)?.toInt()
+      ..notificationId = json['notificationId'] as String
+      ..category = json['category'] as String
+      ..title = json['title'] as String
+      ..body = json['body'] as String
+      ..triggerType = json['triggerType'] as String
+      ..scheduledDate = json['scheduledDate'] == null
+          ? null
+          : DateTime.parse(json['scheduledDate'] as String)
+      ..triggerAtKm = (json['triggerAtKm'] as num?)?.toDouble()
+      ..recurring = json['recurring'] as bool
+      ..recurringInterval = json['recurringInterval'] as String?
+      ..recurringIntervalKm = (json['recurringIntervalKm'] as num?)?.toInt()
+      ..enabled = json['enabled'] as bool
+      ..fired = json['fired'] as bool
+      ..firedAt = json['firedAt'] == null
+          ? null
+          : DateTime.parse(json['firedAt'] as String)
+      ..completed = json['completed'] as bool
+      ..completedAt = json['completedAt'] == null
+          ? null
+          : DateTime.parse(json['completedAt'] as String)
+      ..snoozed = json['snoozed'] as bool
+      ..snoozedUntil = json['snoozedUntil'] == null
+          ? null
+          : DateTime.parse(json['snoozedUntil'] as String)
+      ..linkedReminderId = json['linkedReminderId'] as String?
+      ..notes = json['notes'] as String?
+      ..priority = json['priority'] as String
+      ..createdAt = DateTime.parse(json['createdAt'] as String)
+      ..updatedAt = DateTime.parse(json['updatedAt'] as String);
+
+Map<String, dynamic> _$NotificationScheduleModelToJson(
+        NotificationScheduleModel instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'notificationId': instance.notificationId,
+      'category': instance.category,
+      'title': instance.title,
+      'body': instance.body,
+      'triggerType': instance.triggerType,
+      'scheduledDate': instance.scheduledDate?.toIso8601String(),
+      'triggerAtKm': instance.triggerAtKm,
+      'recurring': instance.recurring,
+      'recurringInterval': instance.recurringInterval,
+      'recurringIntervalKm': instance.recurringIntervalKm,
+      'enabled': instance.enabled,
+      'fired': instance.fired,
+      'firedAt': instance.firedAt?.toIso8601String(),
+      'completed': instance.completed,
+      'completedAt': instance.completedAt?.toIso8601String(),
+      'snoozed': instance.snoozed,
+      'snoozedUntil': instance.snoozedUntil?.toIso8601String(),
+      'linkedReminderId': instance.linkedReminderId,
+      'notes': instance.notes,
+      'priority': instance.priority,
+      'createdAt': instance.createdAt.toIso8601String(),
+      'updatedAt': instance.updatedAt.toIso8601String(),
+    };
