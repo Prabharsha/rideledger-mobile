@@ -1,10 +1,10 @@
 import 'package:isar/isar.dart';
-import '../../data/models/ride_session_model.dart';
-import '../../data/models/route_point_model.dart';
-import '../../data/models/warning_event_model.dart';
 import '../../data/models/fuel_log_model.dart';
 import '../../data/models/maintenance_reminder_model.dart';
 import '../../data/models/retention_policy_model.dart';
+import '../../data/models/ride_session_model.dart';
+import '../../data/models/route_point_model.dart';
+import '../../data/models/warning_event_model.dart';
 import 'storage_service.dart';
 
 /// Per-category storage information

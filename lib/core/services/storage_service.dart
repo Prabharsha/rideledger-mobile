@@ -1,4 +1,5 @@
 import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../data/models/bike_profile_model.dart';
 import '../../data/models/ride_session_model.dart';
 import '../../data/models/fuel_log_model.dart';
@@ -14,16 +15,20 @@ class StorageService {
 
   /// Initialize Isar database
   static Future<void> initialize() async {
-    _isar = await Isar.open([
-      BikeProfileModelSchema,
-      RideSessionModelSchema,
-      FuelLogModelSchema,
-      RoutePointModelSchema,
-      MaintenanceReminderModelSchema,
-      WarningEventModelSchema,
-      RetentionPolicyModelSchema,
-      NotificationScheduleModelSchema,
-    ]);
+    final dir = await getApplicationDocumentsDirectory();
+    _isar = await Isar.open(
+      [
+        BikeProfileModelSchema,
+        RideSessionModelSchema,
+        FuelLogModelSchema,
+        RoutePointModelSchema,
+        MaintenanceReminderModelSchema,
+        WarningEventModelSchema,
+        RetentionPolicyModelSchema,
+        NotificationScheduleModelSchema,
+      ],
+      directory: dir.path,
+    );
   }
 
   /// Get Isar instance
@@ -39,41 +44,14 @@ class StorageService {
   /// Clear all data (dev/testing only)
   static Future<void> clearAll() async {
     await _isar.writeTxn(() async {
-      await _isar.bikeProfileModels.clear();
-      await _isar.rideSessionModels.clear();
-      await _isar.fuelLogModels.clear();
-      await _isar.routePointModels.clear();
-      await _isar.maintenanceReminderModels.clear();
-      await _isar.warningEventModels.clear();
-      await _isar.retentionPolicyModels.clear();
-      await _isar.notificationScheduleModels.clear();
+      await _isar.collection<BikeProfileModel>().clear();
+      await _isar.collection<RideSessionModel>().clear();
+      await _isar.collection<FuelLogModel>().clear();
+      await _isar.collection<RoutePointModel>().clear();
+      await _isar.collection<MaintenanceReminderModel>().clear();
+      await _isar.collection<WarningEventModel>().clear();
+      await _isar.collection<RetentionPolicyModel>().clear();
+      await _isar.collection<NotificationScheduleModel>().clear();
     });
   }
-}
-
-/// Extension on Isar for easier access to collections
-extension IsarCollections on Isar {
-  IsarCollection<BikeProfileModel> get bikeProfileModels =>
-      collection<BikeProfileModel>();
-
-  IsarCollection<RideSessionModel> get rideSessionModels =>
-      collection<RideSessionModel>();
-
-  IsarCollection<FuelLogModel> get fuelLogModels =>
-      collection<FuelLogModel>();
-
-  IsarCollection<RoutePointModel> get routePointModels =>
-      collection<RoutePointModel>();
-
-  IsarCollection<MaintenanceReminderModel> get maintenanceReminderModels =>
-      collection<MaintenanceReminderModel>();
-
-  IsarCollection<WarningEventModel> get warningEventModels =>
-      collection<WarningEventModel>();
-
-  IsarCollection<RetentionPolicyModel> get retentionPolicyModels =>
-      collection<RetentionPolicyModel>();
-
-  IsarCollection<NotificationScheduleModel> get notificationScheduleModels =>
-      collection<NotificationScheduleModel>();
 }

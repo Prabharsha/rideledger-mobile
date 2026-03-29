@@ -184,9 +184,9 @@ class LocalRidesDatasource {
 
   /// Delete ALL route data across all rides (keep all summaries)
   Future<int> deleteAllRouteData() async {
-    int deletedCount = 0;
+    final deletedCount = await _isar.routePointModels.count();
     await _isar.writeTxn(() async {
-      deletedCount = await _isar.routePointModels.clear();
+      await _isar.routePointModels.clear();
 
       // Clear all encoded polylines
       final allRides = await _isar.rideSessionModels.where().findAll();

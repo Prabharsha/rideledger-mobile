@@ -5,7 +5,8 @@
       "Bash(cmd /c \"flutter pub add flutter_tts --dry-run 2>&1\")",
       "Bash(curl -s https://pub.dev/packages/flutter_tts)",
       "WebFetch(domain:pub.dev)",
-      "Bash(dart run:*)"
+      "Bash(dart run:*)",
+      "Bash(flutter clean:*)"
     ]
   }
 }

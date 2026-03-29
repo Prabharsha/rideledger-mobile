@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/break_in_stages.dart';
-import '../../data/models/bike_profile_model.dart';
 import 'bike_profile_provider.dart';
 import 'rides_provider.dart';
 

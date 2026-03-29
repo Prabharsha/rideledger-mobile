@@ -3,7 +3,6 @@ import '../../data/models/fuel_log_model.dart';
 import '../../core/utils/fuel_calculator.dart';
 import 'repositories_provider.dart';
 import 'bike_profile_provider.dart';
-import 'rides_provider.dart';
 
 /// Provider for all fuel logs
 final allFuelLogsProvider = FutureProvider<List<FuelLogModel>>((ref) async {

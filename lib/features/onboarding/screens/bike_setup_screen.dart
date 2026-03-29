@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_strings.dart';
-import '../../../data/models/bike_profile_model.dart';
 import '../providers/onboarding_provider.dart';
 
 /// Bike setup screen (Step 1 of onboarding)
 class BikeSetupScreen extends ConsumerStatefulWidget {
-  const BikeSetupScreen({Key? key}) : super(key: key);
+  const BikeSetupScreen({super.key});
 
   @override
   ConsumerState<BikeSetupScreen> createState() => _BikeSetupScreenState();

@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz_data;
@@ -66,7 +65,7 @@ class NotificationService {
     );
 
     await _plugin.initialize(
-      initSettings,
+      settings: initSettings,
       onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
     );
 
@@ -158,11 +157,11 @@ class NotificationService {
     }
 
     await _plugin.zonedSchedule(
-      _numericId(schedule.notificationId),
-      schedule.title,
-      schedule.body,
-      scheduledTZ,
-      _detailsForSchedule(schedule),
+      id: _numericId(schedule.notificationId),
+      title: schedule.title,
+      body: schedule.body,
+      scheduledDate: scheduledTZ,
+      notificationDetails: _detailsForSchedule(schedule),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: null,
       payload: schedule.notificationId,
@@ -171,7 +170,7 @@ class NotificationService {
 
   /// Cancel a scheduled notification by its UUID.
   Future<void> cancelNotification(String notificationId) async {
-    await _plugin.cancel(_numericId(notificationId));
+    await _plugin.cancel(id: _numericId(notificationId));
   }
 
   /// Cancel all scheduled notifications.
@@ -215,11 +214,11 @@ class NotificationService {
 
     // We don't have the full model here, so we fire a generic snooze reminder.
     await _plugin.zonedSchedule(
-      _numericId(notificationId),
-      'Snoozed Reminder',
-      'You have a snoozed reminder waiting.',
-      scheduledTZ,
-      const NotificationDetails(
+      id: _numericId(notificationId),
+      title: 'Snoozed Reminder',
+      body: 'You have a snoozed reminder waiting.',
+      scheduledDate: scheduledTZ,
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'ride_ledger_reminders',
           'Ride Reminders',
@@ -245,11 +244,11 @@ class NotificationService {
     final scheduledTZ = tz.TZDateTime.from(newDate, tz.local);
 
     await _plugin.zonedSchedule(
-      _numericId(schedule.notificationId),
-      schedule.title,
-      schedule.body,
-      scheduledTZ,
-      _detailsForSchedule(schedule),
+      id: _numericId(schedule.notificationId),
+      title: schedule.title,
+      body: schedule.body,
+      scheduledDate: scheduledTZ,
+      notificationDetails: _detailsForSchedule(schedule),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       payload: schedule.notificationId,
     );
@@ -271,11 +270,11 @@ class NotificationService {
     }
 
     await _plugin.zonedSchedule(
-      _numericId(notificationId),
-      'Rescheduled Reminder',
-      'You have a rescheduled reminder.',
-      scheduledTZ,
-      const NotificationDetails(
+      id: _numericId(notificationId),
+      title: 'Rescheduled Reminder',
+      body: 'You have a rescheduled reminder.',
+      scheduledDate: scheduledTZ,
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'ride_ledger_reminders',
           'Ride Reminders',
@@ -304,11 +303,11 @@ class NotificationService {
     }
 
     await _plugin.zonedSchedule(
-      _numericId(schedule.notificationId),
-      schedule.title,
-      schedule.body,
-      scheduledTZ,
-      _detailsForSchedule(schedule),
+      id: _numericId(schedule.notificationId),
+      title: schedule.title,
+      body: schedule.body,
+      scheduledDate: scheduledTZ,
+      notificationDetails: _detailsForSchedule(schedule),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       payload: schedule.notificationId,
     );
@@ -335,10 +334,10 @@ class NotificationService {
   Future<void> fireDistanceNotification(
       NotificationScheduleModel schedule) async {
     await _plugin.show(
-      _numericId(schedule.notificationId),
-      schedule.title,
-      schedule.body,
-      _detailsForSchedule(schedule),
+      id: _numericId(schedule.notificationId),
+      title: schedule.title,
+      body: schedule.body,
+      notificationDetails: _detailsForSchedule(schedule),
       payload: schedule.notificationId,
     );
   }

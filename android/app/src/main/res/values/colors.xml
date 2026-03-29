@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Native splash background — matches SplashScreen charcoal -->
+    <color name="splash_bg">#1A1B1E</color>
+</resources>

@@ -26,7 +26,7 @@ void main() async {
 }
 
 class RideLedgerApp extends StatelessWidget {
-  const RideLedgerApp({Key? key}) : super(key: key);
+  const RideLedgerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +34,7 @@ class RideLedgerApp extends StatelessWidget {
       title: 'RideLedger',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.dark,
       routerConfig: goRouter,
       debugShowCheckedModeBanner: false,
     );

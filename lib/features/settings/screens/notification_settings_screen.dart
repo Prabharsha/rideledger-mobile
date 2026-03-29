@@ -12,7 +12,7 @@ import '../../../shared/providers/notification_provider.dart';
 /// action buttons (snooze, reschedule, complete, delete), and a FAB to add
 /// custom reminders.
 class NotificationSettingsScreen extends ConsumerStatefulWidget {
-  const NotificationSettingsScreen({Key? key}) : super(key: key);
+  const NotificationSettingsScreen({super.key});
 
   @override
   ConsumerState<NotificationSettingsScreen> createState() =>
@@ -830,7 +830,7 @@ class _NotificationSettingsScreenState
                     if (recurring) ...[
                       if (triggerType == 'date') ...[
                         DropdownButtonFormField<String>(
-                          value: recurringInterval,
+                          initialValue: recurringInterval,
                           decoration: const InputDecoration(
                             labelText: 'Repeat Interval',
                             border: OutlineInputBorder(),

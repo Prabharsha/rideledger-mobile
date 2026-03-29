@@ -152,8 +152,8 @@ class ElevatedPoint extends LatLngPoint {
   final double elevationM;
 
   ElevatedPoint(
-    double latitude,
-    double longitude,
+    super.latitude,
+    super.longitude,
     this.elevationM,
-  ) : super(latitude, longitude);
+  );
 }

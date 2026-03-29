@@ -3,6 +3,7 @@
 /// Provides three tracking mode presets (power saver, balanced, high accuracy)
 /// that control GPS sampling, batch writes, UI refresh rates, and thermal
 /// protection thresholds.
+library;
 
 /// GPS accuracy level used to map to platform-specific location settings.
 enum GpsAccuracyLevel {

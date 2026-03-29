@@ -7,7 +7,7 @@ import '../../../shared/providers/tracking_mode_provider.dart';
 
 /// Settings screen for choosing the GPS tracking mode and thermal protection
 class TrackingModeSettingsScreen extends ConsumerWidget {
-  const TrackingModeSettingsScreen({Key? key}) : super(key: key);
+  const TrackingModeSettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
