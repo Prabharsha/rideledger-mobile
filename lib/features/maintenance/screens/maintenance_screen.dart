@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -33,14 +34,23 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
   int _tabIndex = 0;
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   String _formatDate(DateTime d) =>
       '${d.day} ${_months[d.month - 1]} ${d.year}';
 
-  /// Convert internal type string to a readable title + icon
   (String, IconData) _typeInfo(String type) {
     switch (type) {
       case 'oil_change_1':
@@ -62,6 +72,21 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
           Icons.build_outlined,
         );
     }
+  }
+
+  void _showAddReminderSheet(double currentKm) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgCard,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _AddReminderSheet(currentKm: currentKm),
+    ).then((_) {
+      ref.invalidate(_pendingRemindersProvider);
+      ref.invalidate(_completedRemindersProvider);
+    });
   }
 
   @override
@@ -101,9 +126,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
           SliverPadding(
             padding: const EdgeInsets.all(RLSpacing.base),
             sliver: SliverToBoxAdapter(
-              child: _tabIndex == 0
-                  ? _buildUpcomingTab()
-                  : _buildHistoryTab(),
+              child: _tabIndex == 0 ? _buildUpcomingTab() : _buildHistoryTab(),
             ),
           ),
         ],
@@ -120,8 +143,8 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 60),
         child: Center(
-          child: CircularProgressIndicator(
-              color: AppColors.amber, strokeWidth: 2),
+          child:
+              CircularProgressIndicator(color: AppColors.amber, strokeWidth: 2),
         ),
       ),
       error: (_, __) => _EmptyState(
@@ -131,51 +154,45 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       data: (items) {
         final profile = profileAsync.valueOrNull;
         final ridden = riddenKmAsync.valueOrNull ?? 0;
-        final currentKm =
-            (profile?.rebuildStartOdometerKm ?? 0) + ridden;
-
-        if (items.isEmpty) {
-          return Column(
-            children: [
-              _EmptyState(
-                icon: Icons.check_circle_outline,
-                message: 'No upcoming reminders',
-                hint: 'Add a custom reminder below.',
-              ),
-              const SizedBox(height: RLSpacing.base),
-              _AddReminderButton(),
-              const SizedBox(height: 100),
-            ],
-          );
-        }
+        final currentKm = (profile?.rebuildOdometerKm ?? 0) +
+            (profile?.rebuildStartOdometerKm ?? 0) +
+            ridden;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ...items.map((item) {
-              final (title, icon) = _typeInfo(item.type);
-              final kmRemaining = (item.dueAtKm - currentKm).clamp(0, double.infinity);
-              final progress = currentKm / item.dueAtKm;
-              return _MaintenanceCard(
-                title: title,
-                subtitle: 'Due at ${item.dueAtKm.toInt()} km',
-                icon: icon,
-                currentKm: currentKm,
-                dueAtKm: item.dueAtKm,
-                progress: progress.clamp(0.0, 1.0),
-                kmRemaining: kmRemaining.toDouble(),
-                isOverdue: currentKm >= item.dueAtKm,
-                onMarkDone: () async {
-                  await ref
-                      .read(maintenanceRepositoryProvider)
-                      .markReminderCompleted(item.reminderId);
-                  ref.invalidate(_pendingRemindersProvider);
-                  ref.invalidate(_completedRemindersProvider);
-                },
-              );
-            }),
+            if (items.isEmpty)
+              _EmptyState(
+                icon: Icons.check_circle_outline,
+                message: 'No upcoming reminders',
+                hint: 'Add a custom reminder below.',
+              )
+            else
+              ...items.map((item) {
+                final (title, icon) = _typeInfo(item.type);
+                final kmRemaining =
+                    (item.dueAtKm - currentKm).clamp(0, double.infinity);
+                final progress = currentKm / item.dueAtKm;
+                return _MaintenanceCard(
+                  title: title,
+                  subtitle: 'Due at ${item.dueAtKm.toInt()} km',
+                  icon: icon,
+                  currentKm: currentKm,
+                  dueAtKm: item.dueAtKm,
+                  progress: progress.clamp(0.0, 1.0),
+                  kmRemaining: kmRemaining.toDouble(),
+                  isOverdue: currentKm >= item.dueAtKm,
+                  onMarkDone: () async {
+                    await ref
+                        .read(maintenanceRepositoryProvider)
+                        .markReminderCompleted(item.reminderId);
+                    ref.invalidate(_pendingRemindersProvider);
+                    ref.invalidate(_completedRemindersProvider);
+                  },
+                );
+              }),
             const SizedBox(height: RLSpacing.base),
-            _AddReminderButton(),
+            _AddReminderButton(onTap: () => _showAddReminderSheet(currentKm)),
             const SizedBox(height: 100),
           ],
         );
@@ -190,8 +207,8 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 60),
         child: Center(
-          child: CircularProgressIndicator(
-              color: AppColors.amber, strokeWidth: 2),
+          child:
+              CircularProgressIndicator(color: AppColors.amber, strokeWidth: 2),
         ),
       ),
       error: (_, __) => _EmptyState(
@@ -260,8 +277,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                                   .copyWith(color: AppColors.textMuted),
                             ),
                           ],
-                          if (item.notes != null &&
-                              item.notes!.isNotEmpty) ...[
+                          if (item.notes != null && item.notes!.isNotEmpty) ...[
                             const SizedBox(height: 2),
                             Text(
                               item.notes!,
@@ -284,15 +300,263 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
   }
 }
 
+// ── Add Reminder Bottom Sheet ───────────────────────────────────────────────
+
+class _AddReminderSheet extends ConsumerStatefulWidget {
+  const _AddReminderSheet({required this.currentKm});
+  final double currentKm;
+
+  @override
+  ConsumerState<_AddReminderSheet> createState() => _AddReminderSheetState();
+}
+
+class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
+  late final TextEditingController _dueKmCtrl;
+  late final TextEditingController _customTypeCtrl;
+  late final TextEditingController _notesCtrl;
+  bool _saving = false;
+
+  static const _presets = [
+    ('Oil Change', 'oil_change_1'),
+    ('Chain Lube', 'chain_lube'),
+    ('Air Filter', 'air_filter'),
+    ('Spark Plug', 'spark_plug'),
+    ('Tire Pressure', 'tire_pressure'),
+    ('Custom', 'custom'),
+  ];
+
+  String _selectedType = 'oil_change_1';
+  bool get _isCustom => _selectedType == 'custom';
+
+  @override
+  void initState() {
+    super.initState();
+    _dueKmCtrl = TextEditingController(
+        text: (widget.currentKm + 500).toStringAsFixed(0));
+    _customTypeCtrl = TextEditingController();
+    _notesCtrl = TextEditingController();
+
+    // Rebuild while typing so button enable/disable state stays in sync.
+    _dueKmCtrl.addListener(_onFormChanged);
+    _customTypeCtrl.addListener(_onFormChanged);
+  }
+
+  void _onFormChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _dueKmCtrl.removeListener(_onFormChanged);
+    _customTypeCtrl.removeListener(_onFormChanged);
+    _dueKmCtrl.dispose();
+    _customTypeCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get _isValid {
+    final km = double.tryParse(_dueKmCtrl.text) ?? 0;
+    if (km <= 0) return false;
+    if (_isCustom && _customTypeCtrl.text.trim().isEmpty) return false;
+    return true;
+  }
+
+  Future<void> _save() async {
+    if (!_isValid) return;
+    setState(() => _saving = true);
+    try {
+      final type = _isCustom
+          ? _customTypeCtrl.text.trim().toLowerCase().replaceAll(' ', '_')
+          : _selectedType;
+      final reminder = MaintenanceReminderModel()
+        ..reminderId = const Uuid().v4()
+        ..type = type
+        ..dueAtKm = double.parse(_dueKmCtrl.text)
+        ..completed = false
+        ..completedAt = null
+        ..notes = _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim()
+        ..createdAt = DateTime.now()
+        ..updatedAt = DateTime.now();
+      await ref
+          .read(maintenanceRepositoryProvider)
+          .saveMaintenanceReminder(reminder);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      setState(() => _saving = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Failed to save: $e'),
+              backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  Widget _inputField(String label, TextEditingController ctrl,
+      {TextInputType? keyboard, String? suffix, String? hint}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: RLText.labelSm.copyWith(color: AppColors.textSecondary)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: ctrl,
+          keyboardType: keyboard,
+          style: RLText.bodyMd.copyWith(color: AppColors.textPrimary),
+          decoration: InputDecoration(
+            hintText: hint,
+            suffixText: suffix,
+            hintStyle: RLText.bodyMd.copyWith(color: AppColors.textMuted),
+            suffixStyle:
+                RLText.labelMd.copyWith(color: AppColors.textSecondary),
+            filled: true,
+            fillColor: AppColors.bgCardHigh,
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: RLSpacing.base, vertical: RLSpacing.md),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(RLRadius.lg),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(RLRadius.lg),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(RLRadius.lg),
+              borderSide: const BorderSide(color: AppColors.amber, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          24, 20, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Add Reminder', style: RLText.headlineSm),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close,
+                      size: 20, color: AppColors.textMuted),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Type selector
+            Text('TYPE',
+                style: RLText.labelSm.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _presets.map((p) {
+                final selected = _selectedType == p.$2;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedType = p.$2),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.amberSurface
+                          : AppColors.bgCardHigh,
+                      borderRadius: RLRadius.borderPill,
+                      border: Border.all(
+                        color: selected ? AppColors.amber : AppColors.border,
+                      ),
+                    ),
+                    child: Text(
+                      p.$1,
+                      style: RLText.labelMd.copyWith(
+                        color: selected
+                            ? AppColors.amber
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+
+            if (_isCustom) ...[
+              const SizedBox(height: 14),
+              _inputField('CUSTOM TYPE NAME', _customTypeCtrl,
+                  hint: 'e.g., Valve Clearance'),
+            ],
+
+            const SizedBox(height: 14),
+            _inputField(
+              'DUE AT ODOMETER',
+              _dueKmCtrl,
+              keyboard: const TextInputType.numberWithOptions(decimal: true),
+              suffix: 'km',
+              hint: '${(widget.currentKm + 500).toStringAsFixed(0)}',
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Current odometer: ${widget.currentKm.toStringAsFixed(0)} km',
+              style: RLText.labelSm.copyWith(color: AppColors.textMuted),
+            ),
+
+            const SizedBox(height: 14),
+            _inputField('NOTES (OPTIONAL)', _notesCtrl,
+                hint: 'e.g., Use 10W-40 oil'),
+
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      _isValid ? AppColors.amber : AppColors.amberDim,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(RLRadius.lg),
+                  ),
+                ),
+                onPressed: _isValid && !_saving ? _save : null,
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: AppColors.textInverse, strokeWidth: 2),
+                      )
+                    : Text(
+                        'Save Reminder',
+                        style:
+                            RLText.btnLg.copyWith(color: AppColors.textInverse),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Tab Button ─────────────────────────────────────────────────────────────
 
 class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
+  const _TabButton(
+      {required this.label, required this.selected, required this.onTap});
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -303,8 +567,7 @@ class _TabButton extends StatelessWidget {
       onTap: onTap,
       child: Container(
         height: 40,
-        padding:
-            const EdgeInsets.symmetric(horizontal: RLSpacing.base),
+        padding: const EdgeInsets.symmetric(horizontal: RLSpacing.base),
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -317,8 +580,7 @@ class _TabButton extends StatelessWidget {
         child: Text(
           label,
           style: RLText.labelMd.copyWith(
-            color:
-                selected ? AppColors.amber : AppColors.textMuted,
+            color: selected ? AppColors.amber : AppColors.textMuted,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -327,7 +589,7 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-// ── Maintenance Card ───────────────────────────────────────────────────────
+// ── Maintenance Card ────────────────────────────────────────────────────────
 
 class _MaintenanceCard extends StatelessWidget {
   const _MaintenanceCard({
@@ -351,9 +613,9 @@ class _MaintenanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = isOverdue ? AppColors.error : AppColors.amber;
-    final statusLabel =
-        isOverdue ? 'Overdue' : '${kmRemaining.toInt()} km';
-    final statusBg = isOverdue ? AppColors.errorSurface : AppColors.amberSurface;
+    final statusLabel = isOverdue ? 'Overdue' : '${kmRemaining.toInt()} km';
+    final statusBg =
+        isOverdue ? AppColors.errorSurface : AppColors.amberSurface;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -393,8 +655,8 @@ class _MaintenanceCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: RLText.labelMd
-                          .copyWith(color: AppColors.textMuted),
+                      style:
+                          RLText.labelMd.copyWith(color: AppColors.textMuted),
                     ),
                   ],
                 ),
@@ -405,8 +667,7 @@ class _MaintenanceCard extends StatelessWidget {
                   color: statusBg,
                   borderRadius: RLRadius.borderPill,
                 ),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Text(
                   statusLabel,
                   style: RLText.labelSm.copyWith(color: statusColor),
@@ -415,7 +676,6 @@ class _MaintenanceCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          // Progress bar
           ClipRRect(
             borderRadius: RLRadius.borderPill,
             child: Container(
@@ -456,15 +716,10 @@ class _MaintenanceCard extends StatelessWidget {
   }
 }
 
-// ── Empty state ────────────────────────────────────────────────────────────
+// ── Empty State ─────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.icon,
-    required this.message,
-    this.hint,
-  });
-
+  const _EmptyState({required this.icon, required this.message, this.hint});
   final IconData icon;
   final String message;
   final String? hint;
@@ -479,18 +734,13 @@ class _EmptyState extends StatelessWidget {
           children: [
             Icon(icon, size: 44, color: AppColors.textMuted),
             const SizedBox(height: RLSpacing.md),
-            Text(
-              message,
-              style: RLText.headlineSm
-                  .copyWith(color: AppColors.textSecondary),
-            ),
+            Text(message,
+                style:
+                    RLText.headlineSm.copyWith(color: AppColors.textSecondary)),
             if (hint != null) ...[
               const SizedBox(height: 6),
-              Text(
-                hint!,
-                style:
-                    RLText.bodySm.copyWith(color: AppColors.textMuted),
-              ),
+              Text(hint!,
+                  style: RLText.bodySm.copyWith(color: AppColors.textMuted)),
             ],
           ],
         ),
@@ -499,32 +749,37 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ── Add reminder button ────────────────────────────────────────────────────
+// ── Add Reminder Button ────────────────────────────────────────────────────
 
 class _AddReminderButton extends StatelessWidget {
+  const _AddReminderButton({required this.onTap});
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        border: Border.all(color: AppColors.border),
-        borderRadius: RLRadius.borderLg,
-      ),
-      padding: const EdgeInsets.all(RLSpacing.base),
-      child: Row(
-        children: [
-          const Icon(Icons.add_circle_outline,
-              color: AppColors.amber, size: 20),
-          const SizedBox(width: 10),
-          Text(
-            'Add Custom Reminder',
-            style:
-                RLText.bodyMd.copyWith(color: AppColors.textPrimary),
-          ),
-          const Spacer(),
-          const Icon(Icons.chevron_right,
-              color: AppColors.textMuted, size: 20),
-        ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.bgCard,
+          border: Border.all(color: AppColors.border),
+          borderRadius: RLRadius.borderLg,
+        ),
+        padding: const EdgeInsets.all(RLSpacing.base),
+        child: Row(
+          children: [
+            const Icon(Icons.add_circle_outline,
+                color: AppColors.amber, size: 20),
+            const SizedBox(width: 10),
+            Text(
+              'Add Custom Reminder',
+              style: RLText.bodyMd.copyWith(color: AppColors.textPrimary),
+            ),
+            const Spacer(),
+            const Icon(Icons.chevron_right,
+                color: AppColors.textMuted, size: 20),
+          ],
+        ),
       ),
     );
   }

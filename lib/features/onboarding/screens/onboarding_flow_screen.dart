@@ -347,7 +347,8 @@ class _BikeSetupStep extends ConsumerStatefulWidget {
 class _BikeSetupStepState extends ConsumerState<_BikeSetupStep> {
   late final TextEditingController _modelCtrl;
   late final TextEditingController _vehicleNumberCtrl;
-  late final TextEditingController _odometerCtrl;
+  late final TextEditingController _rebuildOdomCtrl;   // odometer at rebuild
+  late final TextEditingController _currentOdomCtrl;   // current odometer
   DateTime _rebuildDate = DateTime.now();
 
   @override
@@ -355,20 +356,32 @@ class _BikeSetupStepState extends ConsumerState<_BikeSetupStep> {
     super.initState();
     _modelCtrl = TextEditingController(text: 'Yamaha TW200 2017');
     _vehicleNumberCtrl = TextEditingController();
-    _odometerCtrl = TextEditingController(text: '0');
+    _rebuildOdomCtrl = TextEditingController(text: '0');
+    _currentOdomCtrl = TextEditingController(text: '0');
   }
 
   @override
   void dispose() {
     _modelCtrl.dispose();
     _vehicleNumberCtrl.dispose();
-    _odometerCtrl.dispose();
+    _rebuildOdomCtrl.dispose();
+    _currentOdomCtrl.dispose();
     super.dispose();
+  }
+
+  double? get _rebuildOdom => double.tryParse(_rebuildOdomCtrl.text);
+  double? get _currentOdom => double.tryParse(_currentOdomCtrl.text);
+
+  double get _kmAlreadyDone {
+    final r = _rebuildOdom ?? 0;
+    final c = _currentOdom ?? 0;
+    return (c - r).clamp(0.0, double.infinity);
   }
 
   bool get _isValid =>
       _modelCtrl.text.trim().isNotEmpty &&
-      (double.tryParse(_odometerCtrl.text) ?? -1) >= 0;
+      (_rebuildOdom ?? -1) >= 0 &&
+      (_currentOdom ?? -1) >= (_rebuildOdom ?? 0);
 
   void _continue() {
     if (!_isValid) return;
@@ -378,7 +391,8 @@ class _BikeSetupStepState extends ConsumerState<_BikeSetupStep> {
               ? null
               : _vehicleNumberCtrl.text.trim().toUpperCase(),
           rebuildDate: _rebuildDate,
-          rebuildStartOdometerKm: double.parse(_odometerCtrl.text),
+          rebuildOdometerKm: _rebuildOdom!,
+          rebuildStartOdometerKm: _kmAlreadyDone,
         );
     widget.onNext();
   }
@@ -485,8 +499,8 @@ class _BikeSetupStepState extends ConsumerState<_BikeSetupStep> {
           const SizedBox(height: RLSpacing.lg),
 
           _InputField(
-            label: 'KM ALREADY DONE ON ENGINE',
-            controller: _odometerCtrl,
+            label: 'ODOMETER READING AT REBUILD',
+            controller: _rebuildOdomCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             hint: '0',
             suffix: 'km',
@@ -494,8 +508,52 @@ class _BikeSetupStepState extends ConsumerState<_BikeSetupStep> {
 
           const SizedBox(height: 6),
           Text(
-            'How many km have you already ridden on this engine? Enter 0 if starting fresh.',
+            'What was the odometer reading when the engine was rebuilt?',
             style: RLText.labelSm.copyWith(color: AppColors.textMuted),
+          ),
+
+          const SizedBox(height: RLSpacing.lg),
+
+          _InputField(
+            label: 'CURRENT ODOMETER READING',
+            controller: _currentOdomCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            hint: '0',
+            suffix: 'km',
+          ),
+
+          const SizedBox(height: 6),
+          // Calculated km already done
+          ValueListenableBuilder(
+            valueListenable: _currentOdomCtrl,
+            builder: (_, __, ___) => ValueListenableBuilder(
+              valueListenable: _rebuildOdomCtrl,
+              builder: (_, __, ___) {
+                final done = _kmAlreadyDone;
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: RLSpacing.base,
+                    vertical: RLSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.amberSurface,
+                    borderRadius: RLRadius.borderMd,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline,
+                          size: 16, color: AppColors.amber),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Already done since rebuild: ${done.toStringAsFixed(0)} km',
+                        style: RLText.labelMd
+                            .copyWith(color: AppColors.amber),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
 
           const SizedBox(height: RLSpacing.xl),

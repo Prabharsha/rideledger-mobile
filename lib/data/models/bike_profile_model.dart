@@ -26,6 +26,8 @@ class BikeProfileModel {
   late double manualFuelEconomyKmPerLiter; // 20.0
   late double targetFuelEconomyKmPerLiter; // 25.0
   late bool isFirstLaunch;
+  double? rebuildOdometerKm; // Actual bike odometer reading at time of rebuild
+  bool? isBreakInEnabled; // null = true (enabled by default)
   late DateTime createdAt;
   late DateTime updatedAt;
 
@@ -37,11 +39,25 @@ class BikeProfileModel {
       _$BikeProfileModelFromJson(json);
 
   /// Create a copy with updated fields
+  /// Whether break-in mode is active (defaults to true if null)
+  bool get breakInModeEnabled => isBreakInEnabled ?? true;
+
+  /// Current odometer reading = rebuildOdometerKm + rebuildStartOdometerKm + appTrackedKm
+  /// Call with appTrackedKm from ridesProvider for accurate display
+  double currentOdometerKm({double appTrackedKm = 0}) {
+    if (rebuildOdometerKm != null) {
+      return rebuildOdometerKm! + rebuildStartOdometerKm + appTrackedKm;
+    }
+    // Fallback: treat rebuildStartOdometerKm as km since rebuild
+    return rebuildStartOdometerKm + appTrackedKm;
+  }
+
   BikeProfileModel copyWith({
     String? bikeModel,
     String? vehicleNumber,
     DateTime? rebuildDate,
     double? rebuildStartOdometerKm,
+    double? rebuildOdometerKm,
     double? firstOilChangeKm,
     double? secondOilChangeKm,
     String? breakInProfile,
@@ -53,6 +69,7 @@ class BikeProfileModel {
     double? manualFuelEconomyKmPerLiter,
     double? targetFuelEconomyKmPerLiter,
     bool? isFirstLaunch,
+    bool? isBreakInEnabled,
   }) {
     return BikeProfileModel()
       ..id = id
@@ -61,6 +78,7 @@ class BikeProfileModel {
       ..rebuildDate = rebuildDate ?? this.rebuildDate
       ..rebuildStartOdometerKm =
           rebuildStartOdometerKm ?? this.rebuildStartOdometerKm
+      ..rebuildOdometerKm = rebuildOdometerKm ?? this.rebuildOdometerKm
       ..firstOilChangeKm = firstOilChangeKm ?? this.firstOilChangeKm
       ..secondOilChangeKm = secondOilChangeKm ?? this.secondOilChangeKm
       ..breakInProfile = breakInProfile ?? this.breakInProfile
@@ -77,6 +95,7 @@ class BikeProfileModel {
       ..targetFuelEconomyKmPerLiter =
           targetFuelEconomyKmPerLiter ?? this.targetFuelEconomyKmPerLiter
       ..isFirstLaunch = isFirstLaunch ?? this.isFirstLaunch
+      ..isBreakInEnabled = isBreakInEnabled ?? this.isBreakInEnabled
       ..createdAt = createdAt
       ..updatedAt = DateTime.now();
   }

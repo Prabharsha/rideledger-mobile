@@ -8,7 +8,8 @@ class OnboardingState {
   final String? bikeModel;
   final String? vehicleNumber;
   final DateTime? rebuildDate;
-  final double? rebuildStartOdometerKm;
+  final double? rebuildOdometerKm;       // actual odometer at rebuild
+  final double? rebuildStartOdometerKm;  // km already done since rebuild
 
   // Step 2: Break-In Profile
   final String? breakInProfile; // conservative/balanced/aggressive
@@ -32,6 +33,7 @@ class OnboardingState {
     this.bikeModel,
     this.vehicleNumber,
     this.rebuildDate,
+    this.rebuildOdometerKm,
     this.rebuildStartOdometerKm,
     this.breakInProfile,
     this.weeklyFuelQuotaLiters,
@@ -50,6 +52,7 @@ class OnboardingState {
     String? bikeModel,
     String? vehicleNumber,
     DateTime? rebuildDate,
+    double? rebuildOdometerKm,
     double? rebuildStartOdometerKm,
     String? breakInProfile,
     double? weeklyFuelQuotaLiters,
@@ -66,6 +69,7 @@ class OnboardingState {
       bikeModel: bikeModel ?? this.bikeModel,
       vehicleNumber: vehicleNumber ?? this.vehicleNumber,
       rebuildDate: rebuildDate ?? this.rebuildDate,
+      rebuildOdometerKm: rebuildOdometerKm ?? this.rebuildOdometerKm,
       rebuildStartOdometerKm:
           rebuildStartOdometerKm ?? this.rebuildStartOdometerKm,
       breakInProfile: breakInProfile ?? this.breakInProfile,
@@ -110,12 +114,14 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     required String bikeModel,
     String? vehicleNumber,
     required DateTime rebuildDate,
+    required double rebuildOdometerKm,
     required double rebuildStartOdometerKm,
   }) {
     state = state.copyWith(
       bikeModel: bikeModel,
       vehicleNumber: vehicleNumber,
       rebuildDate: rebuildDate,
+      rebuildOdometerKm: rebuildOdometerKm,
       rebuildStartOdometerKm: rebuildStartOdometerKm,
       currentStep: 1,
     );
@@ -172,6 +178,7 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
         ..bikeModel = state.bikeModel!
         ..vehicleNumber = state.vehicleNumber
         ..rebuildDate = state.rebuildDate!
+        ..rebuildOdometerKm = state.rebuildOdometerKm
         ..rebuildStartOdometerKm = state.rebuildStartOdometerKm!
         ..firstOilChangeKm = 350
         ..secondOilChangeKm = 1000
@@ -182,7 +189,8 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
         ..weeklyFuelBalanceLiters = state.weeklyFuelBalanceLiters!
         ..weeklyResetDate = _nextOccurrenceOf(state.weeklyResetWeekday)
         ..manualFuelEconomyKmPerLiter = economy
-        ..targetFuelEconomyKmPerLiter = economy // defaults to current economy
+        ..targetFuelEconomyKmPerLiter = economy
+        ..isBreakInEnabled = true
         ..isFirstLaunch = false
         ..createdAt = DateTime.now()
         ..updatedAt = DateTime.now();
