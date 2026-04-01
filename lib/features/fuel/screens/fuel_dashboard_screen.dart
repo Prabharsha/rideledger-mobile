@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/constants/sample_data.dart';
+import '../../../data/models/fuel_log_model.dart';
+import '../../../shared/providers/fuel_provider.dart';
+import '../../../shared/providers/bike_profile_provider.dart';
 
-class FuelDashboardScreen extends StatelessWidget {
+class FuelDashboardScreen extends ConsumerWidget {
   const FuelDashboardScreen({super.key});
 
   static const _months = [
@@ -16,19 +19,10 @@ class FuelDashboardScreen extends StatelessWidget {
       '${_months[date.month - 1]} ${date.day}';
 
   @override
-  Widget build(BuildContext context) {
-    final usedFraction =
-        (SampleData.weekUsedLiters / SampleData.weeklyQuotaLiters)
-            .clamp(0.0, 1.0);
-    final usedPercent = (usedFraction * 100).round();
-    final remaining =
-        (SampleData.weeklyQuotaLiters - SampleData.weekUsedLiters)
-            .toStringAsFixed(1);
-    final progressColor =
-        usedFraction < 0.8 ? AppColors.olive : AppColors.amber;
-
-    // Fuel economy trend data (last 3 refuels — use fuelLogs)
-    final logs = SampleData.fuelLogs;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(bikeProfileProvider);
+    final weeklyUsedAsync = ref.watch(weeklyFuelUsedProvider);
+    final allLogsAsync = ref.watch(allFuelLogsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
@@ -49,227 +43,308 @@ class FuelDashboardScreen extends StatelessWidget {
               ),
             ],
           ),
-          SliverPadding(
-            padding: const EdgeInsets.all(RLSpacing.lg),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // ── 1. Weekly Quota Card ──────────────────────────────────
-                Container(
-                  padding: const EdgeInsets.all(RLSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgCard,
-                    border: Border.all(color: AppColors.border, width: 1),
-                    borderRadius: RLRadius.borderXl,
+          profileAsync.when(
+            loading: () => const SliverFillRemaining(
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.amber,
+                  strokeWidth: 2,
+                ),
+              ),
+            ),
+            error: (_, __) => SliverFillRemaining(
+              child: Center(
+                child: Text(
+                  'Could not load fuel data',
+                  style: RLText.bodySm.copyWith(color: AppColors.textMuted),
+                ),
+              ),
+            ),
+            data: (profile) {
+              if (profile == null) {
+                return SliverFillRemaining(
+                  child: Center(
+                    child: Text(
+                      'No bike profile found',
+                      style:
+                          RLText.bodySm.copyWith(color: AppColors.textMuted),
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                );
+              }
+
+              final quota = profile.weeklyFuelQuotaLiters;
+              final weeklyUsed =
+                  weeklyUsedAsync.valueOrNull ?? 0.0;
+              final usedFraction = (weeklyUsed / quota).clamp(0.0, 1.0);
+              final usedPercent = (usedFraction * 100).round();
+              final remaining = (quota - weeklyUsed).toStringAsFixed(1);
+              final progressColor =
+                  usedFraction < 0.8 ? AppColors.olive : AppColors.amber;
+              final economy = profile.manualFuelEconomyKmPerLiter;
+              final balance = profile.weeklyFuelBalanceLiters;
+
+              return SliverPadding(
+                padding: const EdgeInsets.all(RLSpacing.lg),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    // ── 1. Weekly Quota Card ────────────────────────────────
+                    Container(
+                      padding: const EdgeInsets.all(RLSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgCard,
+                        border:
+                            Border.all(color: AppColors.border, width: 1),
+                        borderRadius: RLRadius.borderXl,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
                             children: [
                               Text(
                                 'This Week',
-                                style: RLText.labelMd.copyWith(
-                                  color: AppColors.textMuted,
-                                ),
+                                style: RLText.labelMd
+                                    .copyWith(color: AppColors.textMuted),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${weeklyUsed.toStringAsFixed(1)} / ${quota.toStringAsFixed(1)} L',
+                                style: RLText.headlineMd
+                                    .copyWith(color: AppColors.amber),
                               ),
                             ],
                           ),
-                          const Spacer(),
-                          Text(
-                            '${SampleData.weekUsedLiters} / ${SampleData.weeklyQuotaLiters} L',
-                            style: RLText.headlineMd.copyWith(
-                              color: AppColors.amber,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: RLSpacing.md),
-                      // Progress bar
-                      ClipRRect(
-                        borderRadius: RLRadius.borderPill,
-                        child: SizedBox(
-                          height: 8,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              return Stack(
-                                children: [
-                                  Container(
-                                    width: constraints.maxWidth,
-                                    color: AppColors.bgCardHigh,
-                                  ),
-                                  Container(
-                                    width:
-                                        constraints.maxWidth * usedFraction,
-                                    color: progressColor,
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: RLSpacing.xs + 2),
-                      Row(
-                        children: [
-                          Text(
-                            '$usedPercent% used',
-                            style: RLText.labelMd.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            '$remaining L remaining',
-                            style: RLText.labelMd.copyWith(
-                              color: AppColors.olive,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: RLSpacing.base),
-                      const Divider(color: AppColors.divider, height: 1),
-                      const SizedBox(height: RLSpacing.md),
-                      // 3 mini stats
-                      IntrinsicHeight(
-                        child: Row(
-                          children: [
-                            _QuotaMiniStat(
-                              value:
-                                  '${SampleData.currentFuelLiters.toStringAsFixed(1)} L',
-                              label: 'Current',
-                            ),
-                            _VerticalDivider(),
-                            _QuotaMiniStat(
-                              value:
-                                  '~${(SampleData.currentFuelLiters * SampleData.fuelEconomyKmL).round()} km',
-                              label: 'Est. Range',
-                            ),
-                            _VerticalDivider(),
-                            _QuotaMiniStat(
-                              value: SampleData.fuelEconomyKmL
-                                  .toStringAsFixed(1),
-                              label: 'km/L',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: RLSpacing.base),
-
-                // ── 2. Fuel Economy Trend Header ─────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: RLSpacing.sm),
-                  child: Text(
-                    'FUEL ECONOMY',
-                    style: RLText.labelMd.copyWith(
-                      color: AppColors.textMuted,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-
-                // ── 3. Economy Card ───────────────────────────────────────
-                Container(
-                  padding: const EdgeInsets.all(RLSpacing.base),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgCard,
-                    border: Border.all(color: AppColors.border, width: 1),
-                    borderRadius: RLRadius.borderXl,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Last 3 refuels average',
-                        style: RLText.labelMd.copyWith(
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                      const SizedBox(height: RLSpacing.xs + 2),
-                      Text(
-                        '${SampleData.fuelEconomyKmL.toStringAsFixed(1)} km/L',
-                        style: RLText.displaySm,
-                      ),
-                      const SizedBox(height: RLSpacing.md),
-                      // 3 trend cards
-                      Row(
-                        children: List.generate(logs.length, (i) {
-                          final log = logs[i];
-                          // Economy for each log — approximated from adjacent
-                          final economies = [36.0, 35.9, 35.3];
-                          final economy = economies[i];
-                          final prevEconomy = i < economies.length - 1
-                              ? economies[i + 1]
-                              : null;
-                          final isUp = prevEconomy == null ||
-                              economy >= prevEconomy;
-                          final change = prevEconomy != null
-                              ? (economy - prevEconomy).abs()
-                              : 0.0;
-                          return Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.only(
-                                  right: i < logs.length - 1 ? 8 : 0),
-                              child: _TrendCard(
-                                date: _formatDate(log.date),
-                                economy: economy,
-                                isUp: isUp,
-                                change: change,
+                          const SizedBox(height: RLSpacing.md),
+                          // Progress bar
+                          ClipRRect(
+                            borderRadius: RLRadius.borderPill,
+                            child: SizedBox(
+                              height: 8,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return Stack(
+                                    children: [
+                                      Container(
+                                        width: constraints.maxWidth,
+                                        color: AppColors.bgCardHigh,
+                                      ),
+                                      Container(
+                                        width: constraints.maxWidth *
+                                            usedFraction,
+                                        color: progressColor,
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             ),
-                          );
-                        }),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: RLSpacing.base),
-
-                // ── 4. Refuel Log Header ──────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: RLSpacing.sm),
-                  child: Row(
-                    children: [
-                      Text(
-                        'REFUEL LOG',
-                        style: RLText.labelMd.copyWith(
-                          color: AppColors.textMuted,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: null,
-                        child: Text(
-                          'Add',
-                          style: RLText.labelMd.copyWith(
-                            color: AppColors.amber,
-                            letterSpacing: 0.4,
                           ),
-                        ),
+                          const SizedBox(height: RLSpacing.xs + 2),
+                          Row(
+                            children: [
+                              Text(
+                                '$usedPercent% used',
+                                style: RLText.labelMd.copyWith(
+                                    color: AppColors.textSecondary),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '$remaining L remaining',
+                                style: RLText.labelMd
+                                    .copyWith(color: AppColors.olive),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: RLSpacing.base),
+                          const Divider(
+                              color: AppColors.divider, height: 1),
+                          const SizedBox(height: RLSpacing.md),
+                          // 3 mini stats
+                          IntrinsicHeight(
+                            child: Row(
+                              children: [
+                                _QuotaMiniStat(
+                                  value:
+                                      '${balance.toStringAsFixed(1)} L',
+                                  label: 'Balance',
+                                ),
+                                _VerticalDivider(),
+                                _QuotaMiniStat(
+                                  value:
+                                      '~${(balance * economy).round()} km',
+                                  label: 'Est. Range',
+                                ),
+                                _VerticalDivider(),
+                                _QuotaMiniStat(
+                                  value: economy.toStringAsFixed(1),
+                                  label: 'km/L',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
 
-                // ── 5. Refuel Log Items ───────────────────────────────────
-                ...SampleData.fuelLogs.map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: RLSpacing.sm),
-                    child: _RefuelLogItem(item: item, formatDate: _formatDate),
-                  ),
-                ),
+                    const SizedBox(height: RLSpacing.base),
 
-                // ── 6. Bottom padding ─────────────────────────────────────
-                const SizedBox(height: 100),
-              ]),
+                    // ── 2. Odd/Even Restriction Banner ────────────────────
+                    _OddEvenBanner(vehicleNumber: profile.vehicleNumber),
+
+                    const SizedBox(height: RLSpacing.base),
+
+                    // ── 3. Refuel Log Header ──────────────────────────────
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: RLSpacing.sm),
+                      child: Row(
+                        children: [
+                          Text(
+                            'REFUEL LOG',
+                            style: RLText.labelMd.copyWith(
+                              color: AppColors.textMuted,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: null,
+                            child: Text(
+                              'Add',
+                              style: RLText.labelMd.copyWith(
+                                color: AppColors.amber,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ── 3. Refuel Log Items ───────────────────────────────
+                    ...allLogsAsync.valueOrNull?.map(
+                          (item) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: RLSpacing.sm),
+                            child: _RefuelLogItem(
+                                item: item, formatDate: _formatDate),
+                          ),
+                        ) ??
+                        [
+                          // Empty state
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: RLSpacing.xl),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.local_gas_station_outlined,
+                                    size: 40,
+                                    color: AppColors.textMuted,
+                                  ),
+                                  const SizedBox(height: RLSpacing.md),
+                                  Text(
+                                    'No refuels logged yet',
+                                    style: RLText.bodySm.copyWith(
+                                        color: AppColors.textMuted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+
+                    const SizedBox(height: 100),
+                  ]),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Odd/Even Restriction Banner ────────────────────────────────────────────
+
+class _OddEvenBanner extends StatelessWidget {
+  const _OddEvenBanner({required this.vehicleNumber});
+
+  final String? vehicleNumber;
+
+  /// Returns the last digit of the vehicle number, or null if unavailable.
+  int? _lastDigit() {
+    if (vehicleNumber == null || vehicleNumber!.isEmpty) return null;
+    for (int i = vehicleNumber!.length - 1; i >= 0; i--) {
+      final code = vehicleNumber!.codeUnitAt(i);
+      if (code >= 48 && code <= 57) return code - 48;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final digit = _lastDigit();
+    if (digit == null) return const SizedBox.shrink();
+
+    final today = DateTime.now().day;
+    final canRefuel = digit % 2 == today % 2;
+    final plateLabel = vehicleNumber!.toUpperCase();
+    final parity = digit % 2 == 0 ? 'even' : 'odd';
+    final todayParity = today % 2 == 0 ? 'even' : 'odd';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: RLSpacing.base,
+        vertical: RLSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: canRefuel
+            ? AppColors.olive.withValues(alpha: 0.12)
+            : AppColors.error.withValues(alpha: 0.10),
+        borderRadius: RLRadius.borderLg,
+        border: Border.all(
+          color: canRefuel
+              ? AppColors.olive.withValues(alpha: 0.4)
+              : AppColors.error.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            canRefuel ? Icons.check_circle_outline : Icons.block_outlined,
+            size: 20,
+            color: canRefuel ? AppColors.olive : AppColors.error,
+          ),
+          const SizedBox(width: RLSpacing.md),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: RLText.bodySm.copyWith(
+                  color: canRefuel ? AppColors.olive : AppColors.error,
+                  height: 1.4,
+                ),
+                children: [
+                  TextSpan(
+                    text: canRefuel
+                        ? 'Refueling allowed today. '
+                        : 'Refueling not allowed today. ',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(
+                    text: '$plateLabel ends in $digit ($parity plate) · today is $todayParity.',
+                    style: RLText.labelMd.copyWith(
+                      color: canRefuel
+                          ? AppColors.olive.withValues(alpha: 0.8)
+                          : AppColors.error.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -316,90 +391,18 @@ class _VerticalDivider extends StatelessWidget {
   }
 }
 
-class _TrendCard extends StatelessWidget {
-  const _TrendCard({
-    required this.date,
-    required this.economy,
-    required this.isUp,
-    required this.change,
-  });
-
-  final String date;
-  final double economy;
-  final bool isUp;
-  final double change;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.bgCardHigh,
-        borderRadius: RLRadius.borderMd,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            date,
-            style: RLText.labelSm.copyWith(color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(economy.toStringAsFixed(1), style: RLText.numSm),
-              const SizedBox(width: 2),
-              Text(
-                'km/L',
-                style: RLText.labelSm.copyWith(color: AppColors.textMuted),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          if (change > 0)
-            Row(
-              children: [
-                Icon(
-                  isUp ? Icons.arrow_upward : Icons.arrow_downward,
-                  size: 10,
-                  color: isUp ? AppColors.success : AppColors.error,
-                ),
-                const SizedBox(width: 2),
-                Text(
-                  change.toStringAsFixed(1),
-                  style: RLText.labelSm.copyWith(
-                    color: isUp ? AppColors.success : AppColors.error,
-                    fontSize: 9,
-                  ),
-                ),
-              ],
-            )
-          else
-            Text(
-              '—',
-              style: RLText.labelSm.copyWith(color: AppColors.textMuted),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 class _RefuelLogItem extends StatelessWidget {
   const _RefuelLogItem({
     required this.item,
     required this.formatDate,
   });
 
-  final SampleFuelLog item;
+  final FuelLogModel item;
   final String Function(DateTime) formatDate;
 
   @override
   Widget build(BuildContext context) {
-    final totalCost =
-        (item.liters * item.pricePerLiter).toStringAsFixed(0);
+    final totalCost = (item.litersAdded * (item.pricePerLiter ?? 0)).toStringAsFixed(0);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -410,7 +413,6 @@ class _RefuelLogItem extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Icon container
           Container(
             width: 36,
             height: 36,
@@ -425,13 +427,12 @@ class _RefuelLogItem extends StatelessWidget {
             ),
           ),
           const SizedBox(width: RLSpacing.md),
-          // Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${item.liters.toStringAsFixed(1)} L',
+                  '${item.litersAdded.toStringAsFixed(1)} L',
                   style: RLText.bodySm.copyWith(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w600,
@@ -439,21 +440,21 @@ class _RefuelLogItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'at ₹${item.pricePerLiter.toStringAsFixed(2)}/L · Odometer: ${item.odometer.toInt()} km',
-                  style: RLText.labelMd.copyWith(color: AppColors.textMuted),
+                  'at ₹${item.pricePerLiter?.toStringAsFixed(2) ?? '--'}/L · Odo: ${item.odometerKm.toInt()} km',
+                  style:
+                      RLText.labelMd.copyWith(color: AppColors.textMuted),
                 ),
               ],
             ),
           ),
           const SizedBox(width: RLSpacing.sm),
-          // Cost
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text('₹$totalCost', style: RLText.numSm),
               const SizedBox(height: 2),
               Text(
-                'total',
+                formatDate(item.date),
                 style: RLText.labelSm.copyWith(color: AppColors.textMuted),
               ),
             ],

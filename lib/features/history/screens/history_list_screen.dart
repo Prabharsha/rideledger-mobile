@@ -1,30 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/constants/sample_data.dart';
+import '../../../data/models/ride_session_model.dart';
+import '../../../shared/providers/rides_provider.dart';
 
-class HistoryListScreen extends StatefulWidget {
+class HistoryListScreen extends ConsumerStatefulWidget {
   const HistoryListScreen({super.key});
 
   @override
-  State<HistoryListScreen> createState() => _HistoryListScreenState();
+  ConsumerState<HistoryListScreen> createState() => _HistoryListScreenState();
 }
 
-class _HistoryListScreenState extends State<HistoryListScreen> {
+class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
   String _selectedFilter = 'All';
 
   static const _filters = ['All', 'Commute', 'Leisure'];
 
-  List<SampleRide> get _filteredRides {
-    if (_selectedFilter == 'All') return SampleData.rides;
-    return SampleData.rides
-        .where((r) => r.rideType == _selectedFilter)
-        .toList();
+  List<RideSessionModel> _filteredRides(List<RideSessionModel> rides) {
+    if (_selectedFilter == 'All') return rides;
+    final type = _selectedFilter.toLowerCase();
+    return rides.where((r) => r.rideType.toLowerCase() == type).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final ridesAsync = ref.watch(allRideSessionsProvider);
+
     return Scaffold(
       backgroundColor: AppColors.bgBase,
       body: CustomScrollView(
@@ -85,21 +88,68 @@ class _HistoryListScreenState extends State<HistoryListScreen> {
               ),
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.all(RLSpacing.md),
-            sliver: SliverList.separated(
-              itemCount: _filteredRides.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 8, color: Colors.transparent),
-              itemBuilder: (context, index) {
-                final ride = _filteredRides[index];
-                return _RideCard(ride: ride);
-              },
+          ridesAsync.when(
+            loading: () => const SliverFillRemaining(
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.amber,
+                  strokeWidth: 2,
+                ),
+              ),
             ),
+            error: (_, __) => SliverFillRemaining(
+              child: Center(
+                child: Text(
+                  'Could not load rides',
+                  style: RLText.bodySm.copyWith(color: AppColors.textMuted),
+                ),
+              ),
+            ),
+            data: (allRides) {
+              final rides = _filteredRides(allRides);
+              if (rides.isEmpty) {
+                return SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.route_outlined,
+                          size: 48,
+                          color: AppColors.textMuted,
+                        ),
+                        const SizedBox(height: RLSpacing.md),
+                        Text(
+                          'No rides yet',
+                          style: RLText.headlineSm.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Your recorded rides will appear here.',
+                          style: RLText.bodySm.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return SliverPadding(
+                padding: const EdgeInsets.all(RLSpacing.md),
+                sliver: SliverList.separated(
+                  itemCount: rides.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 8, color: Colors.transparent),
+                  itemBuilder: (context, index) =>
+                      _RideCard(ride: rides[index]),
+                ),
+              );
+            },
           ),
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 100),
-          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
     );
@@ -109,27 +159,52 @@ class _HistoryListScreenState extends State<HistoryListScreen> {
 class _RideCard extends StatelessWidget {
   const _RideCard({required this.ride});
 
-  final SampleRide ride;
+  final RideSessionModel ride;
 
   String _formatDate(DateTime date) {
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
-    final hour = date.hour > 12 ? date.hour - 12 : date.hour == 0 ? 12 : date.hour;
+    final hour =
+        date.hour > 12 ? date.hour - 12 : date.hour == 0 ? 12 : date.hour;
     final minute = date.minute.toString().padLeft(2, '0');
     final amPm = date.hour >= 12 ? 'PM' : 'AM';
     return '${months[date.month - 1]} ${date.day}, $hour:$minute $amPm';
   }
 
+  String get _rideTypeLabel {
+    switch (ride.rideType.toLowerCase()) {
+      case 'commute':
+        return 'Commute';
+      case 'extra':
+        return 'Leisure';
+      default:
+        return ride.rideType;
+    }
+  }
+
+  String get _durationLabel {
+    final h = ride.durationSeconds ~/ 3600;
+    final m = (ride.durationSeconds % 3600) ~/ 60;
+    if (h > 0) return '${h}h ${m}m';
+    return '${m}m';
+  }
+
   Color get _typeColor =>
-      ride.rideType == 'Leisure' ? AppColors.olive : AppColors.amber;
+      ride.rideType.toLowerCase() == 'extra'
+          ? AppColors.olive
+          : AppColors.amber;
 
   Color get _typeBorderColor =>
-      ride.rideType == 'Leisure' ? AppColors.oliveDim : AppColors.amberDim;
+      ride.rideType.toLowerCase() == 'extra'
+          ? AppColors.oliveDim
+          : AppColors.amberDim;
 
   Color get _typeSurfaceColor =>
-      ride.rideType == 'Leisure' ? AppColors.oliveSurface : AppColors.amberSurface;
+      ride.rideType.toLowerCase() == 'extra'
+          ? AppColors.oliveSurface
+          : AppColors.amberSurface;
 
   @override
   Widget build(BuildContext context) {
@@ -143,51 +218,26 @@ class _RideCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: route + date/type
+          // Row 1: stage + date/type
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // From → To
               Expanded(
-                child: Row(
-                  children: [
-                    Text(
-                      ride.fromLabel,
-                      style: RLText.bodySm.copyWith(
-                        color: AppColors.textPrimary,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(width: RLSpacing.xs),
-                    const Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 14,
-                      color: AppColors.textMuted,
-                    ),
-                    const SizedBox(width: RLSpacing.xs),
-                    Flexible(
-                      child: Text(
-                        ride.toLabel,
-                        style: RLText.bodySm.copyWith(
-                          color: AppColors.textPrimary,
-                          height: 1.4,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  ride.breakInStageName,
+                  style: RLText.bodySm.copyWith(
+                    color: AppColors.textPrimary,
+                    height: 1.4,
+                  ),
                 ),
               ),
               const SizedBox(width: RLSpacing.sm),
-              // Date + ride type chip
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
                     _formatDate(ride.date),
-                    style: RLText.labelMd.copyWith(
-                      color: AppColors.textMuted,
-                    ),
+                    style: RLText.labelMd.copyWith(color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 4),
                   Container(
@@ -201,7 +251,7 @@ class _RideCard extends StatelessWidget {
                       border: Border.all(color: _typeBorderColor, width: 1),
                     ),
                     child: Text(
-                      ride.rideType,
+                      _rideTypeLabel,
                       style: RLText.labelSm.copyWith(
                         color: _typeColor,
                         letterSpacing: 0.6,
@@ -224,25 +274,24 @@ class _RideCard extends StatelessWidget {
                 label: 'Distance',
               ),
               _MiniStat(
-                value: ride.durationLabel.replaceAll('m', '').replaceAll('h ', 'h '),
-                unit: ride.duration.inHours > 0 ? '' : 'min',
+                value: _durationLabel,
+                unit: '',
                 label: 'Duration',
               ),
               _MiniStat(
-                value: ride.avgSpeedKmh.toStringAsFixed(1),
+                value: ride.averageSpeedKmh.toStringAsFixed(1),
                 unit: 'km/h',
                 label: 'Avg Speed',
               ),
               _MiniStat(
-                value: ride.fuelUsedL.toStringAsFixed(2),
+                value: ride.estimatedFuelUsedLiters.toStringAsFixed(2),
                 unit: 'L',
                 label: 'Fuel',
               ),
             ],
           ),
 
-          // Warning row
-          if (ride.warningCount > 0) ...[
+          if (ride.overspeedEventCount > 0) ...[
             const SizedBox(height: 10),
             Row(
               children: [
@@ -253,7 +302,7 @@ class _RideCard extends StatelessWidget {
                 ),
                 const SizedBox(width: RLSpacing.xs),
                 Text(
-                  '${ride.warningCount} speed warning${ride.warningCount > 1 ? 's' : ''}',
+                  '${ride.overspeedEventCount} speed warning${ride.overspeedEventCount > 1 ? 's' : ''}',
                   style: RLText.labelMd.copyWith(color: AppColors.amber),
                 ),
               ],

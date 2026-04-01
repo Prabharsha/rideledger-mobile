@@ -12,6 +12,7 @@ class BikeProfileModel {
   Id id = Isar.autoIncrement;
 
   late String bikeModel; // e.g., "Yamaha TW200 2017"
+  String? vehicleNumber; // e.g., "KA01AB1234" — last digit used for odd/even rule
   late DateTime rebuildDate;
   late double rebuildStartOdometerKm;
   late double firstOilChangeKm; // 350
@@ -38,6 +39,7 @@ class BikeProfileModel {
   /// Create a copy with updated fields
   BikeProfileModel copyWith({
     String? bikeModel,
+    String? vehicleNumber,
     DateTime? rebuildDate,
     double? rebuildStartOdometerKm,
     double? firstOilChangeKm,
@@ -55,6 +57,7 @@ class BikeProfileModel {
     return BikeProfileModel()
       ..id = id
       ..bikeModel = bikeModel ?? this.bikeModel
+      ..vehicleNumber = vehicleNumber ?? this.vehicleNumber
       ..rebuildDate = rebuildDate ?? this.rebuildDate
       ..rebuildStartOdometerKm =
           rebuildStartOdometerKm ?? this.rebuildStartOdometerKm

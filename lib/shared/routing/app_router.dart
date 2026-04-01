@@ -15,6 +15,7 @@ import '../../features/maintenance/screens/maintenance_screen.dart';
 import '../../features/break_in/screens/break_in_screen.dart';
 import '../../features/reports/screens/reports_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
+import '../../features/onboarding/screens/onboarding_flow_screen.dart';
 
 /// Root GoRouter for RideLedger.
 ///
@@ -38,6 +39,13 @@ final goRouter = GoRouter(
       path: RoutePaths.splash,
       name: 'splash',
       builder: (context, state) => const SplashScreen(),
+    ),
+
+    // ── Onboarding ───────────────────────────────────────────────────────────
+    GoRoute(
+      path: RoutePaths.onboarding,
+      name: 'onboarding',
+      builder: (context, state) => const OnboardingFlowScreen(),
     ),
 
     // ── Shell — bottom navigation tabs ──────────────────────────────────────

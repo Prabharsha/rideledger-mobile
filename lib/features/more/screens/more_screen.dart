@@ -1,16 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/constants/sample_data.dart';
+import '../../../shared/providers/bike_profile_provider.dart';
+import '../../../shared/providers/rides_provider.dart';
+import '../../../shared/providers/break_in_provider.dart';
 import '../../../shared/routing/route_paths.dart';
 
-class MoreScreen extends StatelessWidget {
+class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(bikeProfileProvider);
+    final totalKmAsync = ref.watch(totalRiddenKmProvider);
+    final rideCountAsync = ref.watch(rideCountProvider);
+    final breakInAsync = ref.watch(breakInProgressProvider);
+
+    final profile = profileAsync.valueOrNull;
+    final totalRiddenKm = totalKmAsync.valueOrNull ?? 0.0;
+    final currentOdometer = profile != null
+        ? profile.rebuildStartOdometerKm + totalRiddenKm
+        : null;
+    final rideCount = rideCountAsync.valueOrNull;
+    final breakInPercent = breakInAsync.valueOrNull?.percentComplete;
+
+    // Next service: find the first upcoming oil change km
+    String nextServiceLabel = '—';
+    if (profile != null && currentOdometer != null) {
+      if (currentOdometer < profile.firstOilChangeKm) {
+        final km = (profile.firstOilChangeKm - currentOdometer).round();
+        nextServiceLabel = 'Oil Change · $km km';
+      } else if (currentOdometer < profile.secondOilChangeKm) {
+        final km = (profile.secondOilChangeKm - currentOdometer).round();
+        nextServiceLabel = 'Oil Change · $km km';
+      } else {
+        nextServiceLabel = 'Up to date';
+      }
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bgBase,
       body: SafeArea(
@@ -37,52 +67,58 @@ class MoreScreen extends StatelessWidget {
                     horizontal: RLSpacing.base),
                 child: Column(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _NavCard(
-                            icon: Icons.build_outlined,
-                            iconColor: AppColors.olive,
-                            title: 'Maintenance',
-                            subtitle: 'Service & reminders',
-                            onTap: () => context.go(RoutePaths.maintenance),
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _NavCard(
+                              icon: Icons.build_outlined,
+                              iconColor: AppColors.olive,
+                              title: 'Maintenance',
+                              subtitle: 'Service & reminders',
+                              onTap: () => context.push(RoutePaths.maintenance),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: RLSpacing.md),
-                        Expanded(
-                          child: _NavCard(
-                            icon: Icons.timeline,
-                            iconColor: AppColors.amber,
-                            title: 'Break-In',
-                            subtitle: 'Stage progress & guidance',
-                            onTap: () => context.go(RoutePaths.breakIn),
+                          const SizedBox(width: RLSpacing.md),
+                          Expanded(
+                            child: _NavCard(
+                              icon: Icons.timeline,
+                              iconColor: AppColors.amber,
+                              title: 'Break-In',
+                              subtitle: 'Stage progress & guidance',
+                              onTap: () => context.push(RoutePaths.breakIn),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: RLSpacing.md),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _NavCard(
-                            icon: Icons.download_outlined,
-                            iconColor: AppColors.slate,
-                            title: 'Reports',
-                            subtitle: 'PDF, CSV & full backup',
-                            onTap: () => context.go(RoutePaths.reports),
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _NavCard(
+                              icon: Icons.download_outlined,
+                              iconColor: AppColors.slate,
+                              title: 'Reports',
+                              subtitle: 'PDF, CSV & full backup',
+                              onTap: () => context.push(RoutePaths.reports),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: RLSpacing.md),
-                        Expanded(
-                          child: _NavCard(
-                            icon: Icons.settings_outlined,
-                            iconColor: AppColors.textSecondary,
-                            title: 'Settings',
-                            subtitle: 'Preferences & bike profile',
-                            onTap: () => context.go(RoutePaths.settings),
+                          const SizedBox(width: RLSpacing.md),
+                          Expanded(
+                            child: _NavCard(
+                              icon: Icons.settings_outlined,
+                              iconColor: AppColors.textSecondary,
+                              title: 'Settings',
+                              subtitle: 'Preferences & bike profile',
+                              onTap: () => context.push(RoutePaths.settings),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -120,27 +156,29 @@ class MoreScreen extends StatelessWidget {
                         children: [
                           _StatRow(
                             label: 'Odometer',
-                            value:
-                                '${SampleData.currentOdometer.toStringAsFixed(1)} km',
+                            value: currentOdometer != null
+                                ? '${currentOdometer.toStringAsFixed(1)} km'
+                                : '—',
                             valueColor: AppColors.amber,
                             isFirst: true,
                           ),
                           const _RowDivider(),
                           _StatRow(
                             label: 'Total Rides',
-                            value: '${SampleData.totalRides}',
+                            value: rideCount != null ? '$rideCount' : '—',
                           ),
                           const _RowDivider(),
                           _StatRow(
                             label: 'Break-In',
-                            value:
-                                '${SampleData.breakIn.progressPercent}%',
+                            value: breakInPercent != null
+                                ? '${breakInPercent.round()}%'
+                                : '—',
                             valueColor: AppColors.amber,
                           ),
                           const _RowDivider(),
                           _StatRow(
                             label: 'Next Service',
-                            value: 'Oil Change · 87 km',
+                            value: nextServiceLabel,
                             isLast: true,
                           ),
                         ],

@@ -1,11 +1,18 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:uuid/uuid.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/constants/sample_data.dart';
+import '../../../core/constants/break_in_stages.dart';
+import '../../../data/models/ride_session_model.dart';
+import '../../../shared/providers/repositories_provider.dart';
+import '../../../shared/providers/rides_provider.dart';
+import '../../../shared/providers/bike_profile_provider.dart';
+import '../../../shared/providers/break_in_provider.dart';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Dashboard Palette — night (dark) and day (light)
@@ -60,38 +67,46 @@ class _Palette {
 
 // ════════════════════════════════════════════════════════════════════════════
 // TW200 constants
-// RPM limits per break-in stage (on a 9 000 RPM scale)
-// Speed limits per stage (km/h)
-// Gear ratio chain: primary × gear × final drive — wheel circumference 2.76 m
-// (130/80-18 rear tyre, π × 0.879 m diameter)
+// ── TW200-specific drivetrain constants ──────────────────────────────────────
+// Source: tw200_break_in_plan_with_gears_5665.pdf, Section 4 & 5
+//
+// Primary reduction: 3.318
+// Gear ratios: 1st 2.833 / 2nd 1.789 / 3rd 1.318 / 4th 1.040 / 5th 0.821
+// Final drive: 50/14 = 3.571
+// Rear tyre: 180/80-14 → theoretical diameter 643.6 mm → circ. = π × 0.6436 m
+// Overall ratio (gear i) = primary × gear_i × final
 // ════════════════════════════════════════════════════════════════════════════
 
-const _kMaxRpm       = 9000;
-const _kWheelCircM   = 2.76;  // metres
+const _kMaxRpm      = 9000;
+const _kWheelCircM  = 2.022; // π × 0.6436 m (180/80-14 tyre)
 
-// Stage 1–4 data (index 0–3)
-const _kStageRpmLimits  = [4000, 5000, 6000, 7500];
-const _kStageSpdLimits  = [30.0, 40.0, 50.0, 60.0];
+// Stage 1–4 RPM ceilings and practical speed limits (index 0 = Stage 1 … 3 = Stage 4)
+// RPM limits per PDF Section 3; speed limits derived from RPM ceiling in 4th gear
+const _kStageRpmLimits = [4000, 5000, 6000, 6500]; // rpm
+const _kStageSpdLimits = [40.0, 55.0, 65.0, 75.0]; // km/h
 
-// TW200 overall gear ratios (primary × gear × final)
-const _kGearRatios = [29.6, 17.4, 13.1, 10.5, 8.7]; // gears 1–5
+// Total drivetrain ratios per gear = primary × gear_ratio × final (rounded 1 dp)
+const _kGearRatios = [33.6, 21.2, 15.6, 12.3, 9.7]; // gears 1–5
 
 // ════════════════════════════════════════════════════════════════════════════
 // RideTrackingScreen
 // ════════════════════════════════════════════════════════════════════════════
 
-class RideTrackingScreen extends StatefulWidget {
+class RideTrackingScreen extends ConsumerStatefulWidget {
   const RideTrackingScreen({super.key});
 
   @override
-  State<RideTrackingScreen> createState() => _RideTrackingState();
+  ConsumerState<RideTrackingScreen> createState() => _RideTrackingState();
 }
 
-class _RideTrackingState extends State<RideTrackingScreen> {
+class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
   // ── Ride state ─────────────────────────────────────────────────────────────
   bool     _isRiding    = false;
   Duration _elapsed     = Duration.zero;
   Timer?   _rideTimer;
+  DateTime? _startTime;
+  double   _maxSpeedKmh = 0;
+  int      _overspeedCount = 0;
 
   // Live sensor values — updated by GPS stream while riding
   double _speedKmh    = 0;
@@ -113,8 +128,10 @@ class _RideTrackingState extends State<RideTrackingScreen> {
   bool _isManualOverride = false;
   Timer? _modeTimer;
 
-  // ── Break-in context (Stage 3 from sample data, index 2) ──────────────────
-  int    get _stageIdx       => 2;
+  // ── Break-in context (updated live from breakInProgressProvider) ────────────
+  // Index 0 = Stage 1 (most conservative) … 3 = Stage 4.
+  // Defaults to 0 (Stage 1) until the provider resolves.
+  int    _stageIdx = 0;
   int    get _stageRpmLimit  => _kStageRpmLimits[_stageIdx];
   double get _stageSpdLimit  => _kStageSpdLimits[_stageIdx];
   double get _rpmLimitFrac   => _stageRpmLimit / _kMaxRpm;
@@ -235,10 +252,12 @@ class _RideTrackingState extends State<RideTrackingScreen> {
       _speedKmh   = _isRiding ? newSpeed : 0;
       _gear       = newGear;
       _distanceKm += _isRiding ? added : 0;
+      if (_isRiding && newSpeed > _maxSpeedKmh) _maxSpeedKmh = newSpeed;
     });
 
     // Voice alert — speaks once, then waits 30 s before re-triggering
     if (_isRiding && newSpeed > _stageSpdLimit && !_voiceAlertActive) {
+      _overspeedCount++;
       _voiceAlertActive = true;
       _tts.speak(
         'Speed limit exceeded. '
@@ -276,31 +295,118 @@ class _RideTrackingState extends State<RideTrackingScreen> {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   void _toggleRide() {
-    setState(() {
-      if (_isRiding) {
+    if (_isRiding) {
+      // ── Stop ───────────────────────────────────────────────────────────────
+      final endTime  = DateTime.now();
+      final start    = _startTime ?? endTime;
+      final dist     = _distanceKm;
+      final dur      = _elapsed.inSeconds;
+      final maxSpd   = _maxSpeedKmh;
+      final overspd  = _overspeedCount;
+
+      setState(() {
         _rideTimer?.cancel();
-        _rideTimer = null;
-        _isRiding  = false;
-        _speedKmh  = 0;
-        _gear      = 0;
-        _lastPos   = null;
+        _rideTimer        = null;
+        _isRiding         = false;
+        _speedKmh         = 0;
+        _gear             = 0;
+        _lastPos          = null;
         _voiceAlertActive = false;
-        _tts.stop();
-      } else {
-        _elapsed    = Duration.zero;
-        _distanceKm = 0;
-        _lastPos    = null;
-        _isRiding   = true;
-        _gear       = 1;
-        // Start GPS stream (requests permission if not yet granted)
-        _startGpsStream();
-        // Elapsed timer — GPS provides speed, this tracks wall-clock ride time
-        _rideTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-          if (!mounted) return;
-          setState(() => _elapsed += const Duration(seconds: 1));
-        });
+        _maxSpeedKmh      = 0;
+        _overspeedCount   = 0;
+        _startTime        = null;
+      });
+      _tts.stop();
+
+      // Only save if the ride was more than 10 seconds and moved at all
+      if (dur >= 10 && dist > 0) {
+        _saveRide(
+          startTime:     start,
+          endTime:       endTime,
+          distanceKm:    dist,
+          durationSec:   dur,
+          maxSpeedKmh:   maxSpd,
+          overspeedCount: overspd,
+        );
       }
-    });
+    } else {
+      // ── Start ──────────────────────────────────────────────────────────────
+      setState(() {
+        _elapsed        = Duration.zero;
+        _distanceKm     = 0;
+        _maxSpeedKmh    = 0;
+        _overspeedCount = 0;
+        _lastPos        = null;
+        _startTime      = DateTime.now();
+        _isRiding       = true;
+        _gear           = 1;
+      });
+      _startGpsStream();
+      _rideTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _elapsed += const Duration(seconds: 1));
+      });
+    }
+  }
+
+  Future<void> _saveRide({
+    required DateTime startTime,
+    required DateTime endTime,
+    required double distanceKm,
+    required int durationSec,
+    required double maxSpeedKmh,
+    required int overspeedCount,
+  }) async {
+    final profile = await ref.read(bikeProfileProvider.future);
+    final economy = profile?.manualFuelEconomyKmPerLiter ?? 35.0;
+    final stage   = BreakInStage.getStageFromKm(
+      (profile?.rebuildStartOdometerKm ?? 0) +
+          await ref.read(totalRiddenKmProvider.future),
+    );
+    final avgSpeed = durationSec > 0
+        ? distanceKm / (durationSec / 3600.0)
+        : 0.0;
+    final fuelUsed = economy > 0 ? distanceKm / economy : 0.0;
+
+    final ride = RideSessionModel()
+      ..sessionId              = const Uuid().v4()
+      ..date                   = startTime
+      ..startTime              = startTime
+      ..endTime                = endTime
+      ..startOdometerKm        = 0
+      ..endOdometerKm          = distanceKm
+      ..distanceKm             = distanceKm
+      ..durationSeconds        = durationSec
+      ..averageSpeedKmh        = avgSpeed
+      ..maxSpeedKmh            = maxSpeedKmh
+      ..breakInStageName       = stage.name
+      ..overspeedEventCount    = overspeedCount
+      ..lowSpeedDurationSeconds = 0
+      ..stopDurationSeconds    = 0
+      ..trafficStressLevel     = 'Easy'
+      ..estimatedFuelUsedLiters = fuelUsed
+      ..fuelEconomyUsedKmPerLiter = economy
+      ..rideType               = 'commute'
+      ..encodedRoutePolyline   = null
+      ..notes                  = null
+      ..createdAt              = DateTime.now()
+      ..updatedAt              = DateTime.now();
+
+    await ref.read(ridesRepositoryProvider).saveRideSession(ride);
+    ref.invalidate(allRideSessionsProvider);
+    ref.invalidate(totalRiddenKmProvider);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Ride saved — ${distanceKm.toStringAsFixed(1)} km',
+          ),
+          backgroundColor: const Color(0xFF252A38),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   void _toggleDayMode() {
@@ -338,6 +444,15 @@ class _RideTrackingState extends State<RideTrackingScreen> {
   @override
   Widget build(BuildContext context) {
     final p = _isDayMode ? _Palette.day : _Palette.night;
+
+    // Keep _stageIdx in sync with the real break-in progress.
+    // stageNumber 1–4 → index 0–3; stage 5 (complete) → index 3 (least restrictive).
+    ref.listen<AsyncValue<BreakInProgress?>>(breakInProgressProvider,
+        (_, next) {
+      final stageNum = next.valueOrNull?.stageNumber ?? 1;
+      final idx = (stageNum - 1).clamp(0, 3);
+      if (idx != _stageIdx && mounted) setState(() => _stageIdx = idx);
+    });
 
     return Scaffold(
       backgroundColor: p.bg,
@@ -715,14 +830,20 @@ class _RpmSection extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              _ZLabel('IDLE',    p.textMut),
+              _ZLabel('IDLE\n<2.4k', p.textMut),
               const Spacer(),
               _ZLabel('OPTIMAL', p.textMut),
               const Spacer(),
-              _ZLabel('LIMIT',   p.accent),
+              _ZLabel('LIMIT ▲', p.accent),
               const Spacer(),
-              _ZLabel('DANGER',  p.error),
+              _ZLabel('DANGER\n>7.9k', p.error),
             ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Bar shows estimated RPM from GPS speed + gear ratios. '
+            '▲ = your stage RPM ceiling. Dot = current RPM.',
+            style: TextStyle(fontSize: 10, color: p.textMut, height: 1.4),
           ),
         ],
       ),
@@ -735,7 +856,8 @@ class _ZLabel extends StatelessWidget {
   const _ZLabel(this.t, this.c);
   @override
   Widget build(BuildContext context) => Text(t,
-    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: c, letterSpacing: 0.8));
+    textAlign: TextAlign.center,
+    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: c, letterSpacing: 0.6, height: 1.3));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -948,32 +1070,57 @@ class _MetricTile extends StatelessWidget {
 // Break-in progress bar
 // ════════════════════════════════════════════════════════════════════════════
 
-class _BreakInBar extends StatelessWidget {
+class _BreakInBar extends ConsumerWidget {
   final _Palette palette;
   const _BreakInBar({required this.palette});
 
   @override
-  Widget build(BuildContext context) {
-    final p   = palette;
-    final bIn = SampleData.breakIn;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p        = palette;
+    final progress = ref.watch(breakInProgressProvider).valueOrNull;
+
+    final currentKm = progress?.currentKm ?? 0;
+    final stageEnd  = progress?.stageEndKm ?? 1000;
+    final stageFrac = stageEnd.isFinite
+        ? ((currentKm - (progress?.stageStartKm ?? 0)) /
+                (stageEnd - (progress?.stageStartKm ?? 0)))
+            .clamp(0.0, 1.0)
+        : 1.0;
+    final pct = (stageFrac * 100).round();
+    final label = progress != null
+        ? '${currentKm.toStringAsFixed(0)} / ${stageEnd.isFinite ? stageEnd.toStringAsFixed(0) : '∞'} km  ·  $pct%'
+        : '--';
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: RLSpacing.md),
-      padding: const EdgeInsets.symmetric(horizontal: RLSpacing.base, vertical: RLSpacing.md),
+      padding: const EdgeInsets.symmetric(
+          horizontal: RLSpacing.base, vertical: RLSpacing.md),
       decoration: BoxDecoration(
-        color: p.surface, borderRadius: RLRadius.borderLg, border: Border.all(color: p.border),
+        color: p.surface,
+        borderRadius: RLRadius.borderLg,
+        border: Border.all(color: p.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text('Break-in',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: p.textSec)),
+              Text(
+                progress != null
+                    ? 'Stage ${progress.stageNumber}: ${progress.stageName}'
+                    : 'Break-in',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: p.textSec),
+              ),
               const Spacer(),
               Text(
-                '${bIn.currentKm.toStringAsFixed(0)} / ${bIn.targetKm.toStringAsFixed(0)} km'
-                '  ·  ${bIn.progressPercent}%',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.accent),
+                label,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: p.accent),
               ),
             ],
           ),
@@ -981,10 +1128,11 @@ class _BreakInBar extends StatelessWidget {
           ClipRRect(
             borderRadius: RLRadius.borderPill,
             child: Container(
-              height: 6, color: p.border,
+              height: 6,
+              color: p.border,
               child: FractionallySizedBox(
                 alignment: Alignment.centerLeft,
-                widthFactor: bIn.progressFraction,
+                widthFactor: stageFrac,
                 child: Container(color: p.accent),
               ),
             ),

@@ -82,18 +82,23 @@ const BikeProfileModelSchema = CollectionSchema(
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
-    r'weeklyFuelBalanceLiters': PropertySchema(
+    r'vehicleNumber': PropertySchema(
       id: 13,
+      name: r'vehicleNumber',
+      type: IsarType.string,
+    ),
+    r'weeklyFuelBalanceLiters': PropertySchema(
+      id: 14,
       name: r'weeklyFuelBalanceLiters',
       type: IsarType.double,
     ),
     r'weeklyFuelQuotaLiters': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'weeklyFuelQuotaLiters',
       type: IsarType.double,
     ),
     r'weeklyResetDate': PropertySchema(
-      id: 15,
+      id: 16,
       name: r'weeklyResetDate',
       type: IsarType.dateTime,
     )
@@ -120,6 +125,12 @@ int _bikeProfileModelEstimateSize(
   var bytesCount = offsets.last;
   bytesCount += 3 + object.bikeModel.length * 3;
   bytesCount += 3 + object.breakInProfile.length * 3;
+  {
+    final value = object.vehicleNumber;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -142,9 +153,10 @@ void _bikeProfileModelSerialize(
   writer.writeDouble(offsets[10], object.secondOilChangeKm);
   writer.writeDouble(offsets[11], object.targetFuelEconomyKmPerLiter);
   writer.writeDateTime(offsets[12], object.updatedAt);
-  writer.writeDouble(offsets[13], object.weeklyFuelBalanceLiters);
-  writer.writeDouble(offsets[14], object.weeklyFuelQuotaLiters);
-  writer.writeDateTime(offsets[15], object.weeklyResetDate);
+  writer.writeString(offsets[13], object.vehicleNumber);
+  writer.writeDouble(offsets[14], object.weeklyFuelBalanceLiters);
+  writer.writeDouble(offsets[15], object.weeklyFuelQuotaLiters);
+  writer.writeDateTime(offsets[16], object.weeklyResetDate);
 }
 
 BikeProfileModel _bikeProfileModelDeserialize(
@@ -168,9 +180,10 @@ BikeProfileModel _bikeProfileModelDeserialize(
   object.secondOilChangeKm = reader.readDouble(offsets[10]);
   object.targetFuelEconomyKmPerLiter = reader.readDouble(offsets[11]);
   object.updatedAt = reader.readDateTime(offsets[12]);
-  object.weeklyFuelBalanceLiters = reader.readDouble(offsets[13]);
-  object.weeklyFuelQuotaLiters = reader.readDouble(offsets[14]);
-  object.weeklyResetDate = reader.readDateTime(offsets[15]);
+  object.vehicleNumber = reader.readStringOrNull(offsets[13]);
+  object.weeklyFuelBalanceLiters = reader.readDouble(offsets[14]);
+  object.weeklyFuelQuotaLiters = reader.readDouble(offsets[15]);
+  object.weeklyResetDate = reader.readDateTime(offsets[16]);
   return object;
 }
 
@@ -208,10 +221,12 @@ P _bikeProfileModelDeserializeProp<P>(
     case 12:
       return (reader.readDateTime(offset)) as P;
     case 13:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 14:
       return (reader.readDouble(offset)) as P;
     case 15:
+      return (reader.readDouble(offset)) as P;
+    case 16:
       return (reader.readDateTime(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1271,6 +1286,160 @@ extension BikeProfileModelQueryFilter
   }
 
   QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'vehicleNumber',
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'vehicleNumber',
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'vehicleNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'vehicleNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'vehicleNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'vehicleNumber',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'vehicleNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'vehicleNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'vehicleNumber',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'vehicleNumber',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'vehicleNumber',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      vehicleNumberIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'vehicleNumber',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
       weeklyFuelBalanceLitersEqualTo(
     double value, {
     double epsilon = Query.epsilon,
@@ -1650,6 +1819,20 @@ extension BikeProfileModelQuerySortBy
   }
 
   QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      sortByVehicleNumber() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'vehicleNumber', Sort.asc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      sortByVehicleNumberDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'vehicleNumber', Sort.desc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
       sortByWeeklyFuelBalanceLiters() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'weeklyFuelBalanceLiters', Sort.asc);
@@ -1890,6 +2073,20 @@ extension BikeProfileModelQuerySortThenBy
   }
 
   QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      thenByVehicleNumber() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'vehicleNumber', Sort.asc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      thenByVehicleNumberDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'vehicleNumber', Sort.desc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
       thenByWeeklyFuelBalanceLiters() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'weeklyFuelBalanceLiters', Sort.asc);
@@ -2027,6 +2224,14 @@ extension BikeProfileModelQueryWhereDistinct
   }
 
   QueryBuilder<BikeProfileModel, BikeProfileModel, QDistinct>
+      distinctByVehicleNumber({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'vehicleNumber',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QDistinct>
       distinctByWeeklyFuelBalanceLiters() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'weeklyFuelBalanceLiters');
@@ -2146,6 +2351,13 @@ extension BikeProfileModelQueryProperty
     });
   }
 
+  QueryBuilder<BikeProfileModel, String?, QQueryOperations>
+      vehicleNumberProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'vehicleNumber');
+    });
+  }
+
   QueryBuilder<BikeProfileModel, double, QQueryOperations>
       weeklyFuelBalanceLitersProperty() {
     return QueryBuilder.apply(this, (query) {
@@ -2176,6 +2388,7 @@ BikeProfileModel _$BikeProfileModelFromJson(Map<String, dynamic> json) =>
     BikeProfileModel()
       ..id = (json['id'] as num).toInt()
       ..bikeModel = json['bikeModel'] as String
+      ..vehicleNumber = json['vehicleNumber'] as String?
       ..rebuildDate = DateTime.parse(json['rebuildDate'] as String)
       ..rebuildStartOdometerKm =
           (json['rebuildStartOdometerKm'] as num).toDouble()
@@ -2202,6 +2415,7 @@ Map<String, dynamic> _$BikeProfileModelToJson(BikeProfileModel instance) =>
     <String, dynamic>{
       'id': instance.id,
       'bikeModel': instance.bikeModel,
+      'vehicleNumber': instance.vehicleNumber,
       'rebuildDate': instance.rebuildDate.toIso8601String(),
       'rebuildStartOdometerKm': instance.rebuildStartOdometerKm,
       'firstOilChangeKm': instance.firstOilChangeKm,
