@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/constants/sample_data.dart';
+import '../../../data/models/ride_session_model.dart';
+import '../../../shared/providers/rides_provider.dart';
+import '../../../shared/providers/break_in_provider.dart';
+import '../../../shared/routing/route_paths.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -22,12 +28,59 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeContent extends StatelessWidget {
+class _HomeContent extends ConsumerWidget {
   const _HomeContent();
 
+  static String _fmtDuration(int totalSeconds) {
+    final h = totalSeconds ~/ 3600;
+    final m = (totalSeconds % 3600) ~/ 60;
+    if (h > 0) return '${h}h ${m}m';
+    return '${m}m';
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final topPad = MediaQuery.of(context).padding.top + 16.0;
+
+    final allRides = ref.watch(allRideSessionsProvider).valueOrNull ?? [];
+    final breakIn = ref.watch(breakInProgressProvider).valueOrNull;
+    final currentStage = ref.watch(currentBreakInStageProvider).valueOrNull;
+
+    // Today's aggregates
+    final now = DateTime.now();
+    final todayRides = allRides
+        .where((r) =>
+            r.date.year == now.year &&
+            r.date.month == now.month &&
+            r.date.day == now.day)
+        .toList();
+    final todayDistKm = todayRides.fold(0.0, (s, r) => s + r.distanceKm);
+    final todayDurSec = todayRides.fold(0, (s, r) => s + r.durationSeconds);
+    final todayFuelL =
+        todayRides.fold(0.0, (s, r) => s + r.estimatedFuelUsedLiters);
+
+    // Last 2 rides
+    final recentRides = allRides.take(2).toList();
+
+    // Break-in helpers
+    final progressFraction = breakIn != null && breakIn.stageEndKm.isFinite
+        ? ((breakIn.currentKm - breakIn.stageStartKm) /
+                (breakIn.stageEndKm - breakIn.stageStartKm))
+            .clamp(0.0, 1.0)
+        : (breakIn != null ? 1.0 : 0.0);
+    final stageLabel = breakIn == null
+        ? '--'
+        : breakIn.stageNumber <= 4
+            ? 'Stage ${breakIn.stageNumber} of 4'
+            : 'Complete';
+    final kmText = breakIn == null
+        ? '--'
+        : breakIn.stageEndKm.isFinite
+            ? '${breakIn.currentKm.toInt()} / ${breakIn.stageEndKm.toInt()} km'
+            : '${breakIn.currentKm.toInt()} km';
+    final speedRange = currentStage != null
+        ? '${currentStage.minRecommendedSpeedKmh.toInt()} – ${currentStage.maxRecommendedSpeedKmh.toInt()} km/h'
+        : '--';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,7 +95,6 @@ class _HomeContent extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Left: greeting + title
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -64,7 +116,6 @@ class _HomeContent extends StatelessWidget {
                 ],
               ),
               const Spacer(),
-              // Notification icon with badge
               SizedBox(
                 width: 44,
                 height: 44,
@@ -76,7 +127,6 @@ class _HomeContent extends StatelessWidget {
                       size: 24,
                       color: AppColors.textSecondary,
                     ),
-                    // Badge dot — show when there are reminders
                     Positioned(
                       top: 8,
                       right: 8,
@@ -97,7 +147,6 @@ class _HomeContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              // Avatar circle with motorcycle icon
               CircleAvatar(
                 radius: 17,
                 backgroundColor: AppColors.bgCardHigh,
@@ -128,7 +177,6 @@ class _HomeContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // "Today's Rides" label + badge
                 Row(
                   children: [
                     Text(
@@ -148,7 +196,7 @@ class _HomeContent extends StatelessWidget {
                         borderRadius: RLRadius.borderPill,
                       ),
                       child: Text(
-                        '3 rides',
+                        '${todayRides.length} ${todayRides.length == 1 ? "ride" : "rides"}',
                         style: RLText.labelSm.copyWith(
                           color: AppColors.amber,
                           letterSpacing: 0.5,
@@ -160,34 +208,30 @@ class _HomeContent extends StatelessWidget {
 
                 const SizedBox(height: 12),
 
-                // 3 quick stats row
                 IntrinsicHeight(
                   child: Row(
                     children: [
-                      // Distance
                       Expanded(
                         child: _QuickStat(
-                          value: '45.2',
+                          value: todayDistKm.toStringAsFixed(1),
                           unit: 'km',
                           label: 'Today',
                           valueColor: AppColors.textPrimary,
                         ),
                       ),
                       _VerticalDivider(),
-                      // Ride time
                       Expanded(
                         child: _QuickStat(
-                          value: '2h 04m',
+                          value: _fmtDuration(todayDurSec),
                           unit: '',
                           label: 'Ride Time',
                           valueColor: AppColors.textPrimary,
                         ),
                       ),
                       _VerticalDivider(),
-                      // Fuel
                       Expanded(
                         child: _QuickStat(
-                          value: '0.0',
+                          value: todayFuelL.toStringAsFixed(2),
                           unit: 'L',
                           label: 'Fuel',
                           valueColor: AppColors.olive,
@@ -199,9 +243,8 @@ class _HomeContent extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                // Start Ride button
                 GestureDetector(
-                  onTap: () {},
+                  onTap: () => context.push(RoutePaths.rideTracking),
                   child: Container(
                     width: double.infinity,
                     height: 50,
@@ -262,7 +305,6 @@ class _HomeContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Stage badge + km counter
                 Row(
                   children: [
                     Container(
@@ -275,7 +317,7 @@ class _HomeContent extends StatelessWidget {
                         borderRadius: RLRadius.borderPill,
                       ),
                       child: Text(
-                        'Stage 3 of 4',
+                        stageLabel,
                         style: RLText.labelSm.copyWith(
                           color: AppColors.amber,
                         ),
@@ -283,8 +325,7 @@ class _HomeContent extends StatelessWidget {
                     ),
                     const Spacer(),
                     Text(
-                      '${SampleData.breakIn.currentKm.toInt()} / '
-                      '${SampleData.breakIn.targetKm.toInt()} km',
+                      kmText,
                       style: RLText.labelMd.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -294,7 +335,6 @@ class _HomeContent extends StatelessWidget {
 
                 const SizedBox(height: 10),
 
-                // Progress bar
                 ClipRRect(
                   borderRadius: RLRadius.borderPill,
                   child: Container(
@@ -303,7 +343,7 @@ class _HomeContent extends StatelessWidget {
                     color: AppColors.bgCardHigh,
                     child: FractionallySizedBox(
                       alignment: Alignment.centerLeft,
-                      widthFactor: SampleData.breakIn.progressFraction,
+                      widthFactor: progressFraction,
                       child: Container(
                         decoration: BoxDecoration(
                           color: AppColors.amber,
@@ -316,18 +356,19 @@ class _HomeContent extends StatelessWidget {
 
                 const SizedBox(height: 8),
 
-                // Stage name + percent
                 Row(
                   children: [
                     Text(
-                      SampleData.breakIn.activeStage.name,
+                      breakIn?.stageName ?? '--',
                       style: RLText.bodySm.copyWith(
                         color: AppColors.textPrimary,
                       ),
                     ),
                     const Spacer(),
                     Text(
-                      '${SampleData.breakIn.progressPercent}%',
+                      breakIn != null
+                          ? '${breakIn.percentComplete.round()}%'
+                          : '--',
                       style: RLText.labelMd.copyWith(
                         color: AppColors.amber,
                       ),
@@ -337,10 +378,8 @@ class _HomeContent extends StatelessWidget {
 
                 const SizedBox(height: 4),
 
-                // Speed advice
                 Text(
-                  '${SampleData.breakIn.activeStage.speedRange} · '
-                  'Mix urban and highway',
+                  '$speedRange · Mix urban and highway',
                   style: RLText.labelMd.copyWith(
                     color: AppColors.textMuted,
                   ),
@@ -379,7 +418,6 @@ class _HomeContent extends StatelessWidget {
           ),
         ),
 
-        // First 2 maintenance items
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: RLSpacing.screenH),
           child: Column(
@@ -409,12 +447,26 @@ class _HomeContent extends StatelessWidget {
 
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: RLSpacing.screenH),
-          child: Column(
-            children: SampleData.rides
-                .take(2)
-                .map((ride) => _RideCard(ride: ride))
-                .toList(),
-          ),
+          child: recentRides.isEmpty
+              ? Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(RLSpacing.base),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: RLRadius.borderLg,
+                    border: Border.all(color: AppColors.border, width: 1),
+                  ),
+                  child: Text(
+                    'No rides yet. Start your first ride!',
+                    style:
+                        RLText.bodySm.copyWith(color: AppColors.textMuted),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : Column(
+                  children:
+                      recentRides.map((ride) => _RideCard(ride: ride)).toList(),
+                ),
         ),
 
         // ── 6. BOTTOM PADDING ───────────────────────────────────────────────
@@ -508,7 +560,6 @@ class _MaintenanceCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          // Icon container
           Container(
             width: 36,
             height: 36,
@@ -523,7 +574,6 @@ class _MaintenanceCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // Title + subtitle
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -545,7 +595,6 @@ class _MaintenanceCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // Status badge
           _MaintenanceStatusBadge(status: item.status, item: item),
         ],
       ),
@@ -611,17 +660,27 @@ class _MaintenanceStatusBadge extends StatelessWidget {
 
 // ── Ride Card widget ──────────────────────────────────────────────────────────
 class _RideCard extends StatelessWidget {
-  final SampleRide ride;
+  final RideSessionModel ride;
 
   const _RideCard({required this.ride});
 
-  String _formatDate(DateTime dt) {
+  static String _fmtDate(DateTime dt) {
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
     return '${months[dt.month - 1]} ${dt.day}';
   }
+
+  static String _fmtDuration(int s) {
+    final h = s ~/ 3600;
+    final m = (s % 3600) ~/ 60;
+    if (h > 0) return '${h}h ${m}m';
+    return '${m}m';
+  }
+
+  static String _capitalize(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
   @override
   Widget build(BuildContext context) {
@@ -636,12 +695,11 @@ class _RideCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // From → To + date
           Row(
             children: [
               Expanded(
                 child: Text(
-                  '${ride.fromLabel}  →  ${ride.toLabel}',
+                  '${_capitalize(ride.rideType)} Ride',
                   style: RLText.bodySm.copyWith(
                     color: AppColors.textPrimary,
                   ),
@@ -650,7 +708,7 @@ class _RideCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                _formatDate(ride.date),
+                _fmtDate(ride.date),
                 style: RLText.labelSm.copyWith(
                   color: AppColors.textMuted,
                 ),
@@ -660,11 +718,9 @@ class _RideCard extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          // Mini stats row
           IntrinsicHeight(
             child: Row(
               children: [
-                // Distance
                 Expanded(
                   child: _RideMiniStat(
                     value: ride.distanceKm.toStringAsFixed(1),
@@ -673,19 +729,17 @@ class _RideCard extends StatelessWidget {
                   ),
                 ),
                 _RideStatDivider(),
-                // Duration
                 Expanded(
                   child: _RideMiniStat(
-                    value: ride.durationLabel,
+                    value: _fmtDuration(ride.durationSeconds),
                     unit: '',
                     label: 'Duration',
                   ),
                 ),
                 _RideStatDivider(),
-                // Fuel
                 Expanded(
                   child: _RideMiniStat(
-                    value: ride.fuelUsedL.toStringAsFixed(2),
+                    value: ride.estimatedFuelUsedLiters.toStringAsFixed(2),
                     unit: 'L',
                     label: 'Fuel',
                   ),

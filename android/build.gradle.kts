@@ -50,6 +50,22 @@ subprojects {
     }
 }
 
+// Force all Android library subprojects (e.g. isar_flutter_libs) to compile
+// against SDK 36 so that android:attr/lStar and other API-31+ attributes resolve.
+subprojects {
+    val fixCompileSdk: () -> Unit = {
+        if (plugins.hasPlugin("com.android.library")) {
+            extensions.getByType(com.android.build.gradle.LibraryExtension::class.java)
+                .compileSdk = 36
+        }
+    }
+    if (project.state.executed) {
+        fixCompileSdk()
+    } else {
+        afterEvaluate { fixCompileSdk() }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }

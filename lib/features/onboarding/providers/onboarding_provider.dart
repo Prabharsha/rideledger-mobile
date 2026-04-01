@@ -6,6 +6,7 @@ import '../../../shared/providers/repositories_provider.dart';
 class OnboardingState {
   // Step 1: Bike Setup
   final String? bikeModel;
+  final String? vehicleNumber;
   final DateTime? rebuildDate;
   final double? rebuildStartOdometerKm;
 
@@ -16,7 +17,7 @@ class OnboardingState {
   final double? weeklyFuelQuotaLiters;
   final double? weeklyFuelBalanceLiters;
   final double? manualFuelEconomyKmPerLiter;
-  final double? targetFuelEconomyKmPerLiter;
+  final int weeklyResetWeekday; // 1 = Monday … 7 = Sunday
 
   // Step 4: Commute Setup
   final double? officeOneWayDistanceKm;
@@ -29,13 +30,14 @@ class OnboardingState {
 
   const OnboardingState({
     this.bikeModel,
+    this.vehicleNumber,
     this.rebuildDate,
     this.rebuildStartOdometerKm,
     this.breakInProfile,
     this.weeklyFuelQuotaLiters,
     this.weeklyFuelBalanceLiters,
     this.manualFuelEconomyKmPerLiter,
-    this.targetFuelEconomyKmPerLiter,
+    this.weeklyResetWeekday = 1,
     this.officeOneWayDistanceKm,
     this.officeDaysPerWeek,
     this.currentStep = 0,
@@ -46,13 +48,14 @@ class OnboardingState {
   /// Copy with updates
   OnboardingState copyWith({
     String? bikeModel,
+    String? vehicleNumber,
     DateTime? rebuildDate,
     double? rebuildStartOdometerKm,
     String? breakInProfile,
     double? weeklyFuelQuotaLiters,
     double? weeklyFuelBalanceLiters,
     double? manualFuelEconomyKmPerLiter,
-    double? targetFuelEconomyKmPerLiter,
+    int? weeklyResetWeekday,
     double? officeOneWayDistanceKm,
     int? officeDaysPerWeek,
     int? currentStep,
@@ -61,6 +64,7 @@ class OnboardingState {
   }) {
     return OnboardingState(
       bikeModel: bikeModel ?? this.bikeModel,
+      vehicleNumber: vehicleNumber ?? this.vehicleNumber,
       rebuildDate: rebuildDate ?? this.rebuildDate,
       rebuildStartOdometerKm:
           rebuildStartOdometerKm ?? this.rebuildStartOdometerKm,
@@ -71,8 +75,7 @@ class OnboardingState {
           weeklyFuelBalanceLiters ?? this.weeklyFuelBalanceLiters,
       manualFuelEconomyKmPerLiter:
           manualFuelEconomyKmPerLiter ?? this.manualFuelEconomyKmPerLiter,
-      targetFuelEconomyKmPerLiter:
-          targetFuelEconomyKmPerLiter ?? this.targetFuelEconomyKmPerLiter,
+      weeklyResetWeekday: weeklyResetWeekday ?? this.weeklyResetWeekday,
       officeOneWayDistanceKm:
           officeOneWayDistanceKm ?? this.officeOneWayDistanceKm,
       officeDaysPerWeek: officeDaysPerWeek ?? this.officeDaysPerWeek,
@@ -91,7 +94,6 @@ class OnboardingState {
         weeklyFuelQuotaLiters != null &&
         weeklyFuelBalanceLiters != null &&
         manualFuelEconomyKmPerLiter != null &&
-        targetFuelEconomyKmPerLiter != null &&
         officeOneWayDistanceKm != null &&
         officeDaysPerWeek != null;
   }
@@ -106,11 +108,13 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   /// Step 1: Set bike setup
   void setBikeSetup({
     required String bikeModel,
+    String? vehicleNumber,
     required DateTime rebuildDate,
     required double rebuildStartOdometerKm,
   }) {
     state = state.copyWith(
       bikeModel: bikeModel,
+      vehicleNumber: vehicleNumber,
       rebuildDate: rebuildDate,
       rebuildStartOdometerKm: rebuildStartOdometerKm,
       currentStep: 1,
@@ -130,13 +134,13 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     required double weeklyQuota,
     required double currentBalance,
     required double currentKmPerL,
-    required double targetKmPerL,
+    required int weeklyResetWeekday,
   }) {
     state = state.copyWith(
       weeklyFuelQuotaLiters: weeklyQuota,
       weeklyFuelBalanceLiters: currentBalance,
       manualFuelEconomyKmPerLiter: currentKmPerL,
-      targetFuelEconomyKmPerLiter: targetKmPerL,
+      weeklyResetWeekday: weeklyResetWeekday,
       currentStep: 3,
     );
   }
@@ -163,8 +167,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     state = state.copyWith(isLoading: true);
 
     try {
+      final economy = state.manualFuelEconomyKmPerLiter!;
       final profile = BikeProfileModel()
         ..bikeModel = state.bikeModel!
+        ..vehicleNumber = state.vehicleNumber
         ..rebuildDate = state.rebuildDate!
         ..rebuildStartOdometerKm = state.rebuildStartOdometerKm!
         ..firstOilChangeKm = 350
@@ -174,9 +180,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
         ..officeDaysPerWeek = state.officeDaysPerWeek!
         ..weeklyFuelQuotaLiters = state.weeklyFuelQuotaLiters!
         ..weeklyFuelBalanceLiters = state.weeklyFuelBalanceLiters!
-        ..weeklyResetDate = _getNextMonday()
-        ..manualFuelEconomyKmPerLiter = state.manualFuelEconomyKmPerLiter!
-        ..targetFuelEconomyKmPerLiter = state.targetFuelEconomyKmPerLiter!
+        ..weeklyResetDate = _nextOccurrenceOf(state.weeklyResetWeekday)
+        ..manualFuelEconomyKmPerLiter = economy
+        ..targetFuelEconomyKmPerLiter = economy // defaults to current economy
         ..isFirstLaunch = false
         ..createdAt = DateTime.now()
         ..updatedAt = DateTime.now();
@@ -193,15 +199,16 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     }
   }
 
-  /// Get next Monday for weekly reset
-  DateTime _getNextMonday() {
+  /// Next occurrence of [weekday] (1=Mon … 7=Sun) at midnight, today inclusive.
+  DateTime _nextOccurrenceOf(int weekday) {
     final now = DateTime.now();
-    final daysUntilMonday = (1 - now.weekday) % 7;
-    return now.add(Duration(days: daysUntilMonday)).copyWith(
+    final daysAhead = (weekday - now.weekday) % 7;
+    return now.add(Duration(days: daysAhead)).copyWith(
           hour: 0,
           minute: 0,
           second: 0,
           millisecond: 0,
+          microsecond: 0,
         );
   }
 
