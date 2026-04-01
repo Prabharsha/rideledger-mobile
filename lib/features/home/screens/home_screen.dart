@@ -8,6 +8,7 @@ import '../../../core/constants/sample_data.dart';
 import '../../../data/models/ride_session_model.dart';
 import '../../../shared/providers/rides_provider.dart';
 import '../../../shared/providers/break_in_provider.dart';
+import '../../../shared/providers/bike_profile_provider.dart';
 import '../../../shared/routing/route_paths.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -45,6 +46,9 @@ class _HomeContent extends ConsumerWidget {
     final allRides = ref.watch(allRideSessionsProvider).valueOrNull ?? [];
     final breakIn = ref.watch(breakInProgressProvider).valueOrNull;
     final currentStage = ref.watch(currentBreakInStageProvider).valueOrNull;
+    final profile = ref.watch(bikeProfileProvider).valueOrNull;
+    final totalRiddenKm = ref.watch(totalRiddenKmProvider).valueOrNull ?? 0.0;
+    final currentOdometerKm = profile?.currentOdometerKm(appTrackedKm: totalRiddenKm);
 
     // Today's aggregates
     final now = DateTime.now();
@@ -160,10 +164,42 @@ class _HomeContent extends ConsumerWidget {
           ),
         ),
 
+        // ── 1b. ODOMETER STRIP ──────────────────────────────────────────────
+        if (currentOdometerKm != null)
+          Padding(
+            padding: const EdgeInsets.only(
+              top: 12,
+              left: RLSpacing.screenH,
+              right: RLSpacing.screenH,
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.speed_outlined,
+                  size: 14,
+                  color: AppColors.textMuted,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'Odometer',
+                  style: RLText.labelSm.copyWith(color: AppColors.textMuted),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${currentOdometerKm.toInt()} km',
+                  style: RLText.labelSm.copyWith(
+                    color: AppColors.amber,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         // ── 2. STATUS HERO CARD ─────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.only(
-            top: 16,
+            top: 12,
             left: RLSpacing.screenH,
             right: RLSpacing.screenH,
           ),

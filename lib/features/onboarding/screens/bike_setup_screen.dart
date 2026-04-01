@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_strings.dart';
 import '../providers/onboarding_provider.dart';
 
@@ -49,12 +50,12 @@ class _BikeSetupScreenState extends ConsumerState<BikeSetupScreen> {
     ref.read(onboardingStateProvider.notifier).setBikeSetup(
           bikeModel: _modelController.text,
           rebuildDate: _rebuildDate!,
-          rebuildStartOdometerKm: odometerKm,
+          rebuildOdometerKm: odometerKm,
+          rebuildStartOdometerKm: 0,
         );
 
-    // Navigate to next step
-    // TODO: Navigate to break in profile screen
-    // context.go('/onboarding/break-in-profile');
+    // Navigate to break-in profile screen
+    context.go('/onboarding/break-in-profile');
   }
 
   @override

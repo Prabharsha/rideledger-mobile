@@ -22,83 +22,98 @@ const BikeProfileModelSchema = CollectionSchema(
       name: r'bikeModel',
       type: IsarType.string,
     ),
-    r'breakInProfile': PropertySchema(
+    r'breakInModeEnabled': PropertySchema(
       id: 1,
+      name: r'breakInModeEnabled',
+      type: IsarType.bool,
+    ),
+    r'breakInProfile': PropertySchema(
+      id: 2,
       name: r'breakInProfile',
       type: IsarType.string,
     ),
     r'createdAt': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
     r'firstOilChangeKm': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'firstOilChangeKm',
       type: IsarType.double,
     ),
+    r'isBreakInEnabled': PropertySchema(
+      id: 5,
+      name: r'isBreakInEnabled',
+      type: IsarType.bool,
+    ),
     r'isFirstLaunch': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'isFirstLaunch',
       type: IsarType.bool,
     ),
     r'manualFuelEconomyKmPerLiter': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'manualFuelEconomyKmPerLiter',
       type: IsarType.double,
     ),
     r'officeDaysPerWeek': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'officeDaysPerWeek',
       type: IsarType.long,
     ),
     r'officeOneWayDistanceKm': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'officeOneWayDistanceKm',
       type: IsarType.double,
     ),
     r'rebuildDate': PropertySchema(
-      id: 8,
+      id: 10,
       name: r'rebuildDate',
       type: IsarType.dateTime,
     ),
+    r'rebuildOdometerKm': PropertySchema(
+      id: 11,
+      name: r'rebuildOdometerKm',
+      type: IsarType.double,
+    ),
     r'rebuildStartOdometerKm': PropertySchema(
-      id: 9,
+      id: 12,
       name: r'rebuildStartOdometerKm',
       type: IsarType.double,
     ),
     r'secondOilChangeKm': PropertySchema(
-      id: 10,
+      id: 13,
       name: r'secondOilChangeKm',
       type: IsarType.double,
     ),
     r'targetFuelEconomyKmPerLiter': PropertySchema(
-      id: 11,
+      id: 14,
       name: r'targetFuelEconomyKmPerLiter',
       type: IsarType.double,
     ),
     r'updatedAt': PropertySchema(
-      id: 12,
+      id: 15,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
     r'vehicleNumber': PropertySchema(
-      id: 13,
+      id: 16,
       name: r'vehicleNumber',
       type: IsarType.string,
     ),
     r'weeklyFuelBalanceLiters': PropertySchema(
-      id: 14,
+      id: 17,
       name: r'weeklyFuelBalanceLiters',
       type: IsarType.double,
     ),
     r'weeklyFuelQuotaLiters': PropertySchema(
-      id: 15,
+      id: 18,
       name: r'weeklyFuelQuotaLiters',
       type: IsarType.double,
     ),
     r'weeklyResetDate': PropertySchema(
-      id: 16,
+      id: 19,
       name: r'weeklyResetDate',
       type: IsarType.dateTime,
     )
@@ -141,22 +156,25 @@ void _bikeProfileModelSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeString(offsets[0], object.bikeModel);
-  writer.writeString(offsets[1], object.breakInProfile);
-  writer.writeDateTime(offsets[2], object.createdAt);
-  writer.writeDouble(offsets[3], object.firstOilChangeKm);
-  writer.writeBool(offsets[4], object.isFirstLaunch);
-  writer.writeDouble(offsets[5], object.manualFuelEconomyKmPerLiter);
-  writer.writeLong(offsets[6], object.officeDaysPerWeek);
-  writer.writeDouble(offsets[7], object.officeOneWayDistanceKm);
-  writer.writeDateTime(offsets[8], object.rebuildDate);
-  writer.writeDouble(offsets[9], object.rebuildStartOdometerKm);
-  writer.writeDouble(offsets[10], object.secondOilChangeKm);
-  writer.writeDouble(offsets[11], object.targetFuelEconomyKmPerLiter);
-  writer.writeDateTime(offsets[12], object.updatedAt);
-  writer.writeString(offsets[13], object.vehicleNumber);
-  writer.writeDouble(offsets[14], object.weeklyFuelBalanceLiters);
-  writer.writeDouble(offsets[15], object.weeklyFuelQuotaLiters);
-  writer.writeDateTime(offsets[16], object.weeklyResetDate);
+  writer.writeBool(offsets[1], object.breakInModeEnabled);
+  writer.writeString(offsets[2], object.breakInProfile);
+  writer.writeDateTime(offsets[3], object.createdAt);
+  writer.writeDouble(offsets[4], object.firstOilChangeKm);
+  writer.writeBool(offsets[5], object.isBreakInEnabled);
+  writer.writeBool(offsets[6], object.isFirstLaunch);
+  writer.writeDouble(offsets[7], object.manualFuelEconomyKmPerLiter);
+  writer.writeLong(offsets[8], object.officeDaysPerWeek);
+  writer.writeDouble(offsets[9], object.officeOneWayDistanceKm);
+  writer.writeDateTime(offsets[10], object.rebuildDate);
+  writer.writeDouble(offsets[11], object.rebuildOdometerKm);
+  writer.writeDouble(offsets[12], object.rebuildStartOdometerKm);
+  writer.writeDouble(offsets[13], object.secondOilChangeKm);
+  writer.writeDouble(offsets[14], object.targetFuelEconomyKmPerLiter);
+  writer.writeDateTime(offsets[15], object.updatedAt);
+  writer.writeString(offsets[16], object.vehicleNumber);
+  writer.writeDouble(offsets[17], object.weeklyFuelBalanceLiters);
+  writer.writeDouble(offsets[18], object.weeklyFuelQuotaLiters);
+  writer.writeDateTime(offsets[19], object.weeklyResetDate);
 }
 
 BikeProfileModel _bikeProfileModelDeserialize(
@@ -167,23 +185,25 @@ BikeProfileModel _bikeProfileModelDeserialize(
 ) {
   final object = BikeProfileModel();
   object.bikeModel = reader.readString(offsets[0]);
-  object.breakInProfile = reader.readString(offsets[1]);
-  object.createdAt = reader.readDateTime(offsets[2]);
-  object.firstOilChangeKm = reader.readDouble(offsets[3]);
+  object.breakInProfile = reader.readString(offsets[2]);
+  object.createdAt = reader.readDateTime(offsets[3]);
+  object.firstOilChangeKm = reader.readDouble(offsets[4]);
   object.id = id;
-  object.isFirstLaunch = reader.readBool(offsets[4]);
-  object.manualFuelEconomyKmPerLiter = reader.readDouble(offsets[5]);
-  object.officeDaysPerWeek = reader.readLong(offsets[6]);
-  object.officeOneWayDistanceKm = reader.readDouble(offsets[7]);
-  object.rebuildDate = reader.readDateTime(offsets[8]);
-  object.rebuildStartOdometerKm = reader.readDouble(offsets[9]);
-  object.secondOilChangeKm = reader.readDouble(offsets[10]);
-  object.targetFuelEconomyKmPerLiter = reader.readDouble(offsets[11]);
-  object.updatedAt = reader.readDateTime(offsets[12]);
-  object.vehicleNumber = reader.readStringOrNull(offsets[13]);
-  object.weeklyFuelBalanceLiters = reader.readDouble(offsets[14]);
-  object.weeklyFuelQuotaLiters = reader.readDouble(offsets[15]);
-  object.weeklyResetDate = reader.readDateTime(offsets[16]);
+  object.isBreakInEnabled = reader.readBoolOrNull(offsets[5]);
+  object.isFirstLaunch = reader.readBool(offsets[6]);
+  object.manualFuelEconomyKmPerLiter = reader.readDouble(offsets[7]);
+  object.officeDaysPerWeek = reader.readLong(offsets[8]);
+  object.officeOneWayDistanceKm = reader.readDouble(offsets[9]);
+  object.rebuildDate = reader.readDateTime(offsets[10]);
+  object.rebuildOdometerKm = reader.readDoubleOrNull(offsets[11]);
+  object.rebuildStartOdometerKm = reader.readDouble(offsets[12]);
+  object.secondOilChangeKm = reader.readDouble(offsets[13]);
+  object.targetFuelEconomyKmPerLiter = reader.readDouble(offsets[14]);
+  object.updatedAt = reader.readDateTime(offsets[15]);
+  object.vehicleNumber = reader.readStringOrNull(offsets[16]);
+  object.weeklyFuelBalanceLiters = reader.readDouble(offsets[17]);
+  object.weeklyFuelQuotaLiters = reader.readDouble(offsets[18]);
+  object.weeklyResetDate = reader.readDateTime(offsets[19]);
   return object;
 }
 
@@ -197,36 +217,42 @@ P _bikeProfileModelDeserializeProp<P>(
     case 0:
       return (reader.readString(offset)) as P;
     case 1:
-      return (reader.readString(offset)) as P;
-    case 2:
-      return (reader.readDateTime(offset)) as P;
-    case 3:
-      return (reader.readDouble(offset)) as P;
-    case 4:
       return (reader.readBool(offset)) as P;
-    case 5:
+    case 2:
+      return (reader.readString(offset)) as P;
+    case 3:
+      return (reader.readDateTime(offset)) as P;
+    case 4:
       return (reader.readDouble(offset)) as P;
+    case 5:
+      return (reader.readBoolOrNull(offset)) as P;
     case 6:
-      return (reader.readLong(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 7:
       return (reader.readDouble(offset)) as P;
     case 8:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 9:
       return (reader.readDouble(offset)) as P;
     case 10:
-      return (reader.readDouble(offset)) as P;
-    case 11:
-      return (reader.readDouble(offset)) as P;
-    case 12:
       return (reader.readDateTime(offset)) as P;
+    case 11:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 12:
+      return (reader.readDouble(offset)) as P;
     case 13:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 14:
       return (reader.readDouble(offset)) as P;
     case 15:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readDateTime(offset)) as P;
     case 16:
+      return (reader.readStringOrNull(offset)) as P;
+    case 17:
+      return (reader.readDouble(offset)) as P;
+    case 18:
+      return (reader.readDouble(offset)) as P;
+    case 19:
       return (reader.readDateTime(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -459,6 +485,16 @@ extension BikeProfileModelQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'bikeModel',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      breakInModeEnabledEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'breakInModeEnabled',
+        value: value,
       ));
     });
   }
@@ -778,6 +814,34 @@ extension BikeProfileModelQueryFilter
   }
 
   QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      isBreakInEnabledIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'isBreakInEnabled',
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      isBreakInEnabledIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'isBreakInEnabled',
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      isBreakInEnabledEqualTo(bool? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isBreakInEnabled',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
       isFirstLaunchEqualTo(bool value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -1027,6 +1091,90 @@ extension BikeProfileModelQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      rebuildOdometerKmIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'rebuildOdometerKm',
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      rebuildOdometerKmIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'rebuildOdometerKm',
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      rebuildOdometerKmEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'rebuildOdometerKm',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      rebuildOdometerKmGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'rebuildOdometerKm',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      rebuildOdometerKmLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'rebuildOdometerKm',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterFilterCondition>
+      rebuildOdometerKmBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'rebuildOdometerKm',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
       ));
     });
   }
@@ -1651,6 +1799,20 @@ extension BikeProfileModelQuerySortBy
   }
 
   QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      sortByBreakInModeEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'breakInModeEnabled', Sort.asc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      sortByBreakInModeEnabledDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'breakInModeEnabled', Sort.desc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
       sortByBreakInProfile() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'breakInProfile', Sort.asc);
@@ -1689,6 +1851,20 @@ extension BikeProfileModelQuerySortBy
       sortByFirstOilChangeKmDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'firstOilChangeKm', Sort.desc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      sortByIsBreakInEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBreakInEnabled', Sort.asc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      sortByIsBreakInEnabledDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBreakInEnabled', Sort.desc);
     });
   }
 
@@ -1759,6 +1935,20 @@ extension BikeProfileModelQuerySortBy
       sortByRebuildDateDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'rebuildDate', Sort.desc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      sortByRebuildOdometerKm() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'rebuildOdometerKm', Sort.asc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      sortByRebuildOdometerKmDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'rebuildOdometerKm', Sort.desc);
     });
   }
 
@@ -1892,6 +2082,20 @@ extension BikeProfileModelQuerySortThenBy
   }
 
   QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      thenByBreakInModeEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'breakInModeEnabled', Sort.asc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      thenByBreakInModeEnabledDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'breakInModeEnabled', Sort.desc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
       thenByBreakInProfile() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'breakInProfile', Sort.asc);
@@ -1943,6 +2147,20 @@ extension BikeProfileModelQuerySortThenBy
       thenByIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.desc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      thenByIsBreakInEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBreakInEnabled', Sort.asc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      thenByIsBreakInEnabledDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBreakInEnabled', Sort.desc);
     });
   }
 
@@ -2013,6 +2231,20 @@ extension BikeProfileModelQuerySortThenBy
       thenByRebuildDateDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'rebuildDate', Sort.desc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      thenByRebuildOdometerKm() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'rebuildOdometerKm', Sort.asc);
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QAfterSortBy>
+      thenByRebuildOdometerKmDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'rebuildOdometerKm', Sort.desc);
     });
   }
 
@@ -2139,6 +2371,13 @@ extension BikeProfileModelQueryWhereDistinct
   }
 
   QueryBuilder<BikeProfileModel, BikeProfileModel, QDistinct>
+      distinctByBreakInModeEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'breakInModeEnabled');
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QDistinct>
       distinctByBreakInProfile({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'breakInProfile',
@@ -2157,6 +2396,13 @@ extension BikeProfileModelQueryWhereDistinct
       distinctByFirstOilChangeKm() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'firstOilChangeKm');
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QDistinct>
+      distinctByIsBreakInEnabled() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isBreakInEnabled');
     });
   }
 
@@ -2192,6 +2438,13 @@ extension BikeProfileModelQueryWhereDistinct
       distinctByRebuildDate() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'rebuildDate');
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, BikeProfileModel, QDistinct>
+      distinctByRebuildOdometerKm() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'rebuildOdometerKm');
     });
   }
 
@@ -2267,6 +2520,13 @@ extension BikeProfileModelQueryProperty
     });
   }
 
+  QueryBuilder<BikeProfileModel, bool, QQueryOperations>
+      breakInModeEnabledProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'breakInModeEnabled');
+    });
+  }
+
   QueryBuilder<BikeProfileModel, String, QQueryOperations>
       breakInProfileProperty() {
     return QueryBuilder.apply(this, (query) {
@@ -2285,6 +2545,13 @@ extension BikeProfileModelQueryProperty
       firstOilChangeKmProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'firstOilChangeKm');
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, bool?, QQueryOperations>
+      isBreakInEnabledProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isBreakInEnabled');
     });
   }
 
@@ -2320,6 +2587,13 @@ extension BikeProfileModelQueryProperty
       rebuildDateProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'rebuildDate');
+    });
+  }
+
+  QueryBuilder<BikeProfileModel, double?, QQueryOperations>
+      rebuildOdometerKmProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'rebuildOdometerKm');
     });
   }
 
@@ -2408,6 +2682,8 @@ BikeProfileModel _$BikeProfileModelFromJson(Map<String, dynamic> json) =>
       ..targetFuelEconomyKmPerLiter =
           (json['targetFuelEconomyKmPerLiter'] as num).toDouble()
       ..isFirstLaunch = json['isFirstLaunch'] as bool
+      ..rebuildOdometerKm = (json['rebuildOdometerKm'] as num?)?.toDouble()
+      ..isBreakInEnabled = json['isBreakInEnabled'] as bool?
       ..createdAt = DateTime.parse(json['createdAt'] as String)
       ..updatedAt = DateTime.parse(json['updatedAt'] as String);
 
@@ -2429,6 +2705,8 @@ Map<String, dynamic> _$BikeProfileModelToJson(BikeProfileModel instance) =>
       'manualFuelEconomyKmPerLiter': instance.manualFuelEconomyKmPerLiter,
       'targetFuelEconomyKmPerLiter': instance.targetFuelEconomyKmPerLiter,
       'isFirstLaunch': instance.isFirstLaunch,
+      'rebuildOdometerKm': instance.rebuildOdometerKm,
+      'isBreakInEnabled': instance.isBreakInEnabled,
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
     };
