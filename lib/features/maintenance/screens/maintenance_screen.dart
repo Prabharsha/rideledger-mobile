@@ -8,18 +8,7 @@ import '../../../data/models/maintenance_reminder_model.dart';
 import '../../../shared/providers/repositories_provider.dart';
 import '../../../shared/providers/bike_profile_provider.dart';
 import '../../../shared/providers/rides_provider.dart';
-
-// ── Providers ──────────────────────────────────────────────────────────────
-
-final _pendingRemindersProvider =
-    FutureProvider<List<MaintenanceReminderModel>>((ref) async {
-  return ref.watch(maintenanceRepositoryProvider).getPendingReminders();
-});
-
-final _completedRemindersProvider =
-    FutureProvider<List<MaintenanceReminderModel>>((ref) async {
-  return ref.watch(maintenanceRepositoryProvider).getCompletedReminders();
-});
+import '../../../shared/providers/maintenance_provider.dart';
 
 // ── Screen ─────────────────────────────────────────────────────────────────
 
@@ -84,8 +73,8 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       ),
       builder: (_) => _AddReminderSheet(currentKm: currentKm),
     ).then((_) {
-      ref.invalidate(_pendingRemindersProvider);
-      ref.invalidate(_completedRemindersProvider);
+      ref.invalidate(pendingRemindersProvider);
+      ref.invalidate(completedRemindersProvider);
     });
   }
 
@@ -135,7 +124,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
   }
 
   Widget _buildUpcomingTab() {
-    final pendingAsync = ref.watch(_pendingRemindersProvider);
+    final pendingAsync = ref.watch(pendingRemindersProvider);
     final profileAsync = ref.watch(bikeProfileProvider);
     final riddenKmAsync = ref.watch(totalRiddenKmProvider);
 
@@ -186,8 +175,8 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                     await ref
                         .read(maintenanceRepositoryProvider)
                         .markReminderCompleted(item.reminderId);
-                    ref.invalidate(_pendingRemindersProvider);
-                    ref.invalidate(_completedRemindersProvider);
+                    ref.invalidate(pendingRemindersProvider);
+                    ref.invalidate(completedRemindersProvider);
                   },
                 );
               }),
@@ -201,7 +190,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
   }
 
   Widget _buildHistoryTab() {
-    final completedAsync = ref.watch(_completedRemindersProvider);
+    final completedAsync = ref.watch(completedRemindersProvider);
 
     return completedAsync.when(
       loading: () => const Padding(
@@ -506,7 +495,7 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
               _dueKmCtrl,
               keyboard: const TextInputType.numberWithOptions(decimal: true),
               suffix: 'km',
-              hint: '${(widget.currentKm + 500).toStringAsFixed(0)}',
+              hint: (widget.currentKm + 500).toStringAsFixed(0),
             ),
             const SizedBox(height: 4),
             Text(
@@ -693,7 +682,7 @@ class _MaintenanceCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Row(
             children: [
               Text(
@@ -703,9 +692,31 @@ class _MaintenanceCard extends StatelessWidget {
               const Spacer(),
               GestureDetector(
                 onTap: onMarkDone,
-                child: Text(
-                  'Mark done',
-                  style: RLText.labelSm.copyWith(color: AppColors.olive),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.oliveSurface,
+                    borderRadius: RLRadius.borderPill,
+                    border: Border.all(color: AppColors.oliveDim, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.check_rounded,
+                        size: 12,
+                        color: AppColors.olive,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Mark done',
+                        style: RLText.labelSm.copyWith(color: AppColors.olive),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

@@ -2,4 +2,5 @@
 <resources>
     <!-- Native splash background — matches SplashScreen charcoal -->
     <color name="splash_bg">#1A1B1E</color>
+	<color name="ic_launcher_background">#0E0F14</color>
 </resources>

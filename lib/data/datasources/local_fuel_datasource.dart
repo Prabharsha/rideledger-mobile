@@ -36,10 +36,12 @@ class LocalFuelDatasource {
         .findAll();
   }
 
-  /// Get fuel logs for the current week
-  Future<List<FuelLogModel>> getFuelLogsForWeek(DateTime weekStartDate) async {
-    final weekEndDate = weekStartDate.add(const Duration(days: 7));
-    return await getFuelLogsByDateRange(weekStartDate, weekEndDate);
+  /// Get fuel logs for the current week.
+  /// [weeklyResetDate] is the next upcoming reset point (end of window).
+  /// The current week spans the 7 days leading up to that date.
+  Future<List<FuelLogModel>> getFuelLogsForWeek(DateTime weeklyResetDate) async {
+    final weekStartDate = weeklyResetDate.subtract(const Duration(days: 7));
+    return await getFuelLogsByDateRange(weekStartDate, weeklyResetDate);
   }
 
   /// Get latest fuel log
