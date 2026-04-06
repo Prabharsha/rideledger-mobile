@@ -9,6 +9,8 @@ import '../../../core/constants/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/constants/break_in_stages.dart';
 import '../../../data/models/ride_session_model.dart';
+import '../../../data/models/route_point_model.dart';
+import '../../../data/models/warning_event_model.dart';
 import '../../../shared/providers/repositories_provider.dart';
 import '../../../shared/providers/rides_provider.dart';
 import '../../../shared/providers/bike_profile_provider.dart';
@@ -120,6 +122,15 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
   Position? _lastPos;
   bool _gpsReady = false;
   bool _gpsError = false;
+
+  // ── Route & warning accumulation ──────────────────────────────────────────
+  String _currentSessionId = '';
+  final List<RoutePointModel> _routePoints = [];
+  final List<WarningEventModel> _warningEvents = [];
+  DateTime? _lastRoutePointTime;
+
+  // ── Speed history (last 15 min, for background graph) ─────────────────────
+  final List<_SpeedPoint> _speedHistory = [];
 
   // TTS voice alerts
   final FlutterTts _tts = FlutterTts();
@@ -260,13 +271,53 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
       _speedKmh = (_isRiding && !_isPaused) ? newSpeed : 0;
       _gear = newGear;
       _distanceKm += (_isRiding && !_isPaused) ? added : 0;
-      if (_isRiding && !_isPaused && newSpeed > _maxSpeedKmh)
+      if (_isRiding && !_isPaused && newSpeed > _maxSpeedKmh) {
         _maxSpeedKmh = newSpeed;
+      }
     });
+
+    // Append to speed history (last 15 minutes, used by background graph)
+    if (_isRiding && !_isPaused) {
+      final now = DateTime.now();
+      _speedHistory.add(_SpeedPoint(now, newSpeed));
+      final cutoff = now.subtract(const Duration(minutes: 15));
+      while (_speedHistory.isNotEmpty &&
+          _speedHistory.first.time.isBefore(cutoff)) {
+        _speedHistory.removeAt(0);
+      }
+    }
+
+    // Record a GPS route point (throttled: 1 point per 5 seconds while riding)
+    if (_isRiding && !_isPaused && _currentSessionId.isNotEmpty) {
+      final now = DateTime.now();
+      if (_lastRoutePointTime == null ||
+          now.difference(_lastRoutePointTime!).inSeconds >= 5) {
+        _lastRoutePointTime = now;
+        _routePoints.add(RoutePointModel()
+          ..pointId = const Uuid().v4()
+          ..sessionId = _currentSessionId
+          ..timestamp = now
+          ..latitude = pos.latitude
+          ..longitude = pos.longitude
+          ..speedKmh = newSpeed
+          ..accuracyM = pos.accuracy
+          ..altitudeM = pos.altitude);
+      }
+    }
 
     // Voice alert — speaks once, then waits 30 s before re-triggering
     if (_isRiding && newSpeed > _stageSpdLimit && !_voiceAlertActive) {
       _overspeedCount++;
+      // Record warning event with full context
+      _warningEvents.add(WarningEventModel()
+        ..warningId = const Uuid().v4()
+        ..sessionId = _currentSessionId
+        ..timestamp = DateTime.now()
+        ..type = 'overspeed'
+        ..message =
+            'Speed ${newSpeed.toStringAsFixed(0)} km/h exceeded the ${_stageSpdLimit.toStringAsFixed(0)} km/h break-in limit'
+        ..speedKmh = newSpeed
+        ..breakInStageName = null);
       _voiceAlertActive = true;
       _tts.speak(
         'Speed limit exceeded. '
@@ -314,6 +365,11 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
       final maxSpd = _maxSpeedKmh;
       final overspd = _overspeedCount;
 
+      // Snapshot accumulated data BEFORE resetting state
+      final capturedSessionId = _currentSessionId;
+      final capturedRoutePoints = List<RoutePointModel>.from(_routePoints);
+      final capturedWarnings = List<WarningEventModel>.from(_warningEvents);
+
       setState(() {
         _rideTimer?.cancel();
         _rideTimer = null;
@@ -326,18 +382,26 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
         _maxSpeedKmh = 0;
         _overspeedCount = 0;
         _startTime = null;
+        _routePoints.clear();
+        _warningEvents.clear();
+        _speedHistory.clear();
+        _lastRoutePointTime = null;
+        _currentSessionId = '';
       });
       _tts.stop();
 
       // Only save if the ride was more than 10 seconds and moved at all
       if (dur >= 10 && dist > 0) {
         _saveRide(
+          sessionId: capturedSessionId,
           startTime: start,
           endTime: endTime,
           distanceKm: dist,
           durationSec: dur,
           maxSpeedKmh: maxSpd,
           overspeedCount: overspd,
+          routePoints: capturedRoutePoints,
+          warningEvents: capturedWarnings,
         );
       }
     } else {
@@ -356,6 +420,11 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
         _isRiding = true;
         _gear = 1;
       });
+      // Generate a fresh session ID and reset accumulators for the new ride
+      _currentSessionId = const Uuid().v4();
+      _routePoints.clear();
+      _warningEvents.clear();
+      _lastRoutePointTime = null;
       _startGpsStream();
       _rideTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted || _isPaused) return;
@@ -392,12 +461,15 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
   }
 
   Future<void> _saveRide({
+    required String sessionId,
     required DateTime startTime,
     required DateTime endTime,
     required double distanceKm,
     required int durationSec,
     required double maxSpeedKmh,
     required int overspeedCount,
+    required List<RoutePointModel> routePoints,
+    required List<WarningEventModel> warningEvents,
   }) async {
     final profile = await ref.read(bikeProfileProvider.future);
     final economy = profile?.manualFuelEconomyKmPerLiter ?? 35.0;
@@ -410,7 +482,7 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
     final fuelUsed = economy > 0 ? distanceKm / economy : 0.0;
 
     final ride = RideSessionModel()
-      ..sessionId = const Uuid().v4()
+      ..sessionId = sessionId
       ..date = startTime
       ..startTime = startTime
       ..endTime = endTime
@@ -433,7 +505,19 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
       ..createdAt = DateTime.now()
       ..updatedAt = DateTime.now();
 
-    await ref.read(ridesRepositoryProvider).saveRideSession(ride);
+    final repo = ref.read(ridesRepositoryProvider);
+    await repo.saveRideSession(ride);
+
+    // Persist route points (speed profile + map trace)
+    if (routePoints.isNotEmpty) {
+      await repo.saveRoutePointsBatch(routePoints);
+    }
+
+    // Persist warning events (overspeed alerts with timestamps)
+    if (warningEvents.isNotEmpty) {
+      await repo.saveWarningEvents(sessionId, warningEvents);
+    }
+
     ref.invalidate(allRideSessionsProvider);
     ref.invalidate(totalRiddenKmProvider);
 
@@ -526,6 +610,8 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
                 isRiding: _isRiding,
                 isOverLimit: _isOverLimit,
                 palette: p,
+                speedHistory: _speedHistory,
+                stageLimit: _stageSpdLimit,
               ),
             ),
             _RpmSection(
@@ -797,58 +883,178 @@ class _SpeedWarning extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Speed display
+// Speed display — large bold number + subtle 15-min history graph background
 // ════════════════════════════════════════════════════════════════════════════
 
 class _SpeedDisplay extends StatelessWidget {
   final double speed;
   final bool isRiding, isOverLimit;
   final _Palette palette;
+  final List<_SpeedPoint> speedHistory;
+  final double stageLimit;
 
   const _SpeedDisplay({
     required this.speed,
     required this.isRiding,
     required this.isOverLimit,
     required this.palette,
+    required this.speedHistory,
+    required this.stageLimit,
   });
 
   @override
   Widget build(BuildContext context) {
-    final p = palette;
+    final p     = palette;
     final color = isOverLimit ? p.error : p.text;
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            isRiding ? speed.toStringAsFixed(0) : '0',
-            style: TextStyle(
-              fontSize: 120,
-              fontWeight: FontWeight.w200,
-              color: color,
-              letterSpacing: -5,
-              height: 1.0,
-              fontFeatures: const [FontFeature.tabularFigures()],
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // ── Background speed-history graph ─────────────────────────────────
+        if (speedHistory.length >= 2)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 32),
+            child: CustomPaint(
+              painter: _SpeedHistoryPainter(
+                points:     speedHistory,
+                maxSpeed:   100.0,
+                limitSpeed: stageLimit,
+                lineColor:  isOverLimit ? p.error : p.accent,
+                limitColor: p.error,
+              ),
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            'km/h',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: p.textSec,
-              letterSpacing: 4,
-            ),
+
+        // ── Speed number + unit ────────────────────────────────────────────
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isRiding ? speed.toStringAsFixed(0) : '0',
+                style: TextStyle(
+                  fontSize: 128,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                  letterSpacing: -8,
+                  height: 1.0,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'km/h',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: p.textSec,
+                  letterSpacing: 5,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// RPM zone section
+// Speed history CustomPainter
+// ════════════════════════════════════════════════════════════════════════════
+
+class _SpeedHistoryPainter extends CustomPainter {
+  final List<_SpeedPoint> points;
+  final double maxSpeed;
+  final double limitSpeed;
+  final Color lineColor;
+  final Color limitColor;
+
+  const _SpeedHistoryPainter({
+    required this.points,
+    required this.maxSpeed,
+    required this.limitSpeed,
+    required this.lineColor,
+    required this.limitColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+
+    final now      = DateTime.now();
+    const windowMs = 15 * 60 * 1000.0;
+
+    // ── Limit line ─────────────────────────────────────────────────────────
+    final limitY = size.height * (1 - (limitSpeed / maxSpeed).clamp(0, 1));
+    canvas.drawLine(
+      Offset(0, limitY),
+      Offset(size.width, limitY),
+      Paint()
+        ..color       = limitColor.withValues(alpha: 0.20)
+        ..strokeWidth = 1.0,
+    );
+
+    // ── Build speed path ───────────────────────────────────────────────────
+    final path = Path();
+    double firstX = 0;
+    bool started = false;
+
+    for (final pt in points) {
+      final elapsedMs =
+          now.difference(pt.time).inMilliseconds.toDouble().clamp(0, windowMs);
+      final x = size.width * (1.0 - elapsedMs / windowMs);
+      final y = size.height * (1.0 - (pt.speed / maxSpeed).clamp(0.0, 1.0));
+      if (!started) {
+        path.moveTo(x, y);
+        firstX = x;
+        started = true;
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    // ── Fill under the curve ───────────────────────────────────────────────
+    final fillPath = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(firstX, size.height)
+      ..close();
+
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..color = lineColor.withValues(alpha: 0.07)
+        ..style = PaintingStyle.fill,
+    );
+
+    // ── Stroke ─────────────────────────────────────────────────────────────
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color      = lineColor.withValues(alpha: 0.28)
+        ..style      = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..strokeCap  = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SpeedHistoryPainter o) =>
+      o.points != points ||
+      o.limitSpeed != limitSpeed ||
+      o.lineColor != lineColor;
+}
+
+// ── Speed point data holder ────────────────────────────────────────────────
+class _SpeedPoint {
+  final DateTime time;
+  final double speed;
+  const _SpeedPoint(this.time, this.speed);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// RPM zone section — modern segmented LED-style indicator
 // ════════════════════════════════════════════════════════════════════════════
 
 class _RpmSection extends StatelessWidget {
@@ -869,41 +1075,51 @@ class _RpmSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = palette;
+    // Is the current RPM in or past the caution zone?
+    final isCautionOrAbove = rpmFrac > limitFrac;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: RLSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header row
           Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                'RPM ZONE',
+                'RPM',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: p.textMut,
-                  letterSpacing: 1.5,
+                  letterSpacing: 2.0,
                 ),
               ),
               const Spacer(),
               Text(
                 rpmLabel,
                 style: TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w700, color: p.accent),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: isCautionOrAbove ? p.error : p.accent,
+                  letterSpacing: -0.5,
+                ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               Text(
-                '/ $limitLabel',
-                style: TextStyle(fontSize: 13, color: p.textMut),
+                'limit ${(limitFrac * _kMaxRpm / 1000).toStringAsFixed(1)}k',
+                style: TextStyle(fontSize: 11, color: p.textMut),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          // Bar — height increased to 60 for better visibility
+          const SizedBox(height: 10),
+          // Segmented bar
           SizedBox(
-            height: 60,
+            height: 20,
             child: CustomPaint(
-              painter: _RpmBarPainter(
+              painter: _RpmSegmentPainter(
                 rpmFrac: rpmFrac,
                 limitFrac: limitFrac,
                 isDay: isDayMode,
@@ -911,43 +1127,23 @@ class _RpmSection extends StatelessWidget {
               child: const SizedBox.expand(),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
+          // Zone labels (compact)
           Row(
             children: [
-              _ZLabel('IDLE\n<2.4k', p.textMut),
+              Text('IDLE', style: TextStyle(fontSize: 9, color: p.textMut, letterSpacing: 0.8)),
               const Spacer(),
-              _ZLabel('OPTIMAL', p.textMut),
+              Text('OPTIMAL', style: TextStyle(fontSize: 9, color: p.textMut, letterSpacing: 0.8)),
               const Spacer(),
-              _ZLabel('LIMIT ▲', p.accent),
+              Text('▲ LIMIT', style: TextStyle(fontSize: 9, color: p.accent, letterSpacing: 0.8, fontWeight: FontWeight.w700)),
               const Spacer(),
-              _ZLabel('DANGER\n>7.9k', p.error),
+              Text('DANGER', style: TextStyle(fontSize: 9, color: p.error, letterSpacing: 0.8)),
             ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Bar shows estimated RPM from GPS speed + gear ratios. '
-            '▲ = your stage RPM ceiling. Dot = current RPM.',
-            style: TextStyle(fontSize: 10, color: p.textMut, height: 1.4),
           ),
         ],
       ),
     );
   }
-}
-
-class _ZLabel extends StatelessWidget {
-  final String t;
-  final Color c;
-  const _ZLabel(this.t, this.c);
-  @override
-  Widget build(BuildContext context) => Text(t,
-      textAlign: TextAlign.center,
-      style: TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          color: c,
-          letterSpacing: 0.6,
-          height: 1.3));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1060,118 +1256,92 @@ class _RideTypeSheet extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// RPM Bar CustomPainter
-// Draws four colour-coded zones + stage-limit marker + current-RPM dot
+// RPM Segment Painter — 24 LED-style rounded-rect segments
 // ════════════════════════════════════════════════════════════════════════════
 
-class _RpmBarPainter extends CustomPainter {
+class _RpmSegmentPainter extends CustomPainter {
   final double rpmFrac, limitFrac;
   final bool isDay;
 
-  const _RpmBarPainter({
+  const _RpmSegmentPainter({
     required this.rpmFrac,
     required this.limitFrac,
     required this.isDay,
   });
 
-  static const _olive = Color(0xFF8F9E62);
-  static const _amber = Color(0xFFC9964A);
-  static const _amberD = Color(0xFFB8852A);
+  static const _nSeg = 24;
+  static const _gap  = 3.0;
+  static const _r    = Radius.circular(3);
+
+  static const _olive  = Color(0xFF8F9E62);
+  static const _amber  = Color(0xFFC9964A);
   static const _orange = Color(0xFFCC6B2A);
-  static const _red = Color(0xFFBF5A50);
+  static const _red    = Color(0xFFBF5A50);
 
-  Color get _zA => isDay ? _amberD : _amber;
+  // Zone boundaries (must match _RpmBarPainter logic)
+  static const _z1 = 0.27;  // idle → optimal
+  static const _z3 = 0.88;  // caution → danger
 
-  // Zone boundaries
-  static const _z1 = 0.27; // end of idle
-  // z2 = limitFrac           end of optimal
-  static const _z3 = 0.88; // end of caution
+  Color _zoneColor(double frac) {
+    if (frac <= _z1)         return _olive;
+    if (frac <= limitFrac)   return _amber;
+    if (frac <= _z3)         return _orange;
+    return _red;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final barH = size.height * 0.50; // bar occupies top 50 %; bottom for dot
-    const barT = 0.0;
-    const r = Radius.circular(5);
+    final w     = size.width;
+    final h     = size.height;
+    final segW  = (w - (_nSeg - 1) * _gap) / _nSeg;
 
-    final bgColor = isDay ? const Color(0xFFBFBCB4) : const Color(0xFF252A38);
+    for (int i = 0; i < _nSeg; i++) {
+      final segFrac  = (i + 0.5) / _nSeg; // midpoint of this segment
+      final x        = i * (segW + _gap);
+      final rect     = Rect.fromLTWH(x, 0, segW, h);
+      final rRect    = RRect.fromRectAndRadius(rect, _r);
+      final base     = _zoneColor(segFrac);
+      final isActive = segFrac <= rpmFrac;
 
-    // Background track
-    _seg(canvas, w, barT, barH, r, 0, 1, bgColor);
+      // Limit marker gap: tiny dark divider before the first segment past limitFrac
+      final isLimitEdge =
+          (limitFrac * _nSeg).round() == i && !isActive;
 
-    // Zone overlays — increased opacity for better visibility
-    _seg(canvas, w, barT, barH, r, 0, _z1, _olive.withValues(alpha: 0.40));
-    _seg(canvas, w, barT, barH, r, _z1, limitFrac, _zA.withValues(alpha: 0.35));
-    _seg(canvas, w, barT, barH, r, limitFrac, _z3,
-        _orange.withValues(alpha: 0.35));
-    _seg(canvas, w, barT, barH, r, _z3, 1, _red.withValues(alpha: 0.40));
-
-    // Filled portion (solid, full opacity)
-    if (rpmFrac > 0.02) {
-      final fc = rpmFrac <= _z1
-          ? _olive
-          : rpmFrac <= limitFrac
-              ? _zA
-              : rpmFrac <= _z3
-                  ? _orange
-                  : _red;
-      _seg(canvas, w, barT, barH, r, 0, rpmFrac.clamp(0.0, 1.0), fc);
+      if (isActive) {
+        // Solid filled segment
+        canvas.drawRRect(rRect, Paint()..color = base);
+        // Subtle glow on the leading (current) segment
+        if (rpmFrac - segFrac < 1.5 / _nSeg) {
+          canvas.drawRRect(
+            rRect,
+            Paint()
+              ..color = base.withValues(alpha: 0.45)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+          );
+        }
+      } else {
+        // Dim inactive segment
+        canvas.drawRRect(
+          rRect,
+          Paint()..color = base.withValues(alpha: isDay ? 0.18 : 0.13),
+        );
+        // Limit marker: bright amber hairline before this segment
+        if (isLimitEdge) {
+          canvas.drawLine(
+            Offset(x - _gap / 2, -2),
+            Offset(x - _gap / 2, h + 2),
+            Paint()
+              ..color = _amber.withValues(alpha: 0.85)
+              ..strokeWidth = 2.5
+              ..strokeCap = StrokeCap.round,
+          );
+        }
+      }
     }
-
-    // Stage limit marker — vertical line
-    final lx = limitFrac * w;
-    final mc = (isDay ? const Color(0xFF191B24) : const Color(0xFFEDEAE4))
-        .withValues(alpha: 0.90);
-    canvas.drawLine(
-      Offset(lx, barT - 4),
-      Offset(lx, barT + barH + 4),
-      Paint()
-        ..color = mc
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round,
-    );
-    // Small amber triangle above the bar pointing to the limit
-    final tri = Path()
-      ..moveTo(lx, barT - 4)
-      ..lineTo(lx - 5, barT - 13)
-      ..lineTo(lx + 5, barT - 13)
-      ..close();
-    canvas.drawPath(tri, Paint()..color = _zA);
-
-    // Current RPM dot below the bar
-    final dotX = (rpmFrac * w).clamp(7.0, w - 7.0);
-    final dotY = barT + barH + (size.height - barH) * 0.58;
-    final dotColor = rpmFrac <= _z1
-        ? _olive
-        : rpmFrac <= limitFrac
-            ? _zA
-            : rpmFrac <= _z3
-                ? _orange
-                : _red;
-    canvas.drawCircle(Offset(dotX, dotY), 7, Paint()..color = dotColor);
-    canvas.drawCircle(
-      Offset(dotX, dotY),
-      7,
-      Paint()
-        ..color = (isDay ? const Color(0xFFECE9E1) : const Color(0xFF0E0F14))
-            .withValues(alpha: 0.35)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5,
-    );
-  }
-
-  void _seg(Canvas canvas, double w, double t, double h, Radius r, double f0,
-      double f1, Color c) {
-    final x0 = f0 * w, x1 = f1 * w;
-    if (x1 <= x0 + 0.5) return;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(x0, t, x1 - x0, h), r),
-      Paint()..color = c,
-    );
   }
 
   @override
-  bool shouldRepaint(_RpmBarPainter o) =>
+  bool shouldRepaint(_RpmSegmentPainter o) =>
       o.rpmFrac != rpmFrac || o.limitFrac != limitFrac || o.isDay != isDay;
 }
 

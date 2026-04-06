@@ -16,6 +16,7 @@ import '../../features/break_in/screens/break_in_screen.dart';
 import '../../features/reports/screens/reports_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/onboarding/screens/onboarding_flow_screen.dart';
+import '../../features/history/screens/trip_detail_screen.dart';
 
 /// Root GoRouter for RideLedger.
 ///
@@ -87,6 +88,24 @@ final goRouter = GoRouter(
           builder: (context, state) => const MoreScreen(),
         ),
       ],
+    ),
+
+    // ── Ride detail — accessed from history list, no bottom nav ─────────────
+    GoRoute(
+      path: RoutePaths.rideDetail,
+      name: 'rideDetail',
+      builder: (context, state) {
+        final rideId = state.pathParameters['rideId']!;
+        final extra = state.extra as Map<String, dynamic>?;
+        final sessionIds =
+            (extra?['sessionIds'] as List?)?.cast<String>() ?? <String>[];
+        final currentIndex = (extra?['currentIndex'] as int?) ?? 0;
+        return TripDetailScreen(
+          rideId: rideId,
+          sessionIds: sessionIds,
+          currentIndex: currentIndex,
+        );
+      },
     ),
 
     // ── Workshop screens — accessed from More, no bottom nav ────────────────

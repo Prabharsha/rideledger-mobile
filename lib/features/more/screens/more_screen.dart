@@ -7,6 +7,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/providers/bike_profile_provider.dart';
 import '../../../shared/providers/rides_provider.dart';
 import '../../../shared/providers/break_in_provider.dart';
+import '../../../shared/providers/maintenance_provider.dart';
 import '../../../shared/routing/route_paths.dart';
 
 class MoreScreen extends ConsumerWidget {
@@ -21,23 +22,30 @@ class MoreScreen extends ConsumerWidget {
 
     final profile = profileAsync.valueOrNull;
     final totalRiddenKm = totalKmAsync.valueOrNull ?? 0.0;
-    final currentOdometer = profile != null
-        ? profile.rebuildStartOdometerKm + totalRiddenKm
-        : null;
+    final currentOdometer = profile?.currentOdometerKm(appTrackedKm: totalRiddenKm);
     final rideCount = rideCountAsync.valueOrNull;
     final breakInPercent = breakInAsync.valueOrNull?.percentComplete;
+    final pendingReminders = ref.watch(pendingRemindersProvider).valueOrNull ?? [];
 
-    // Next service: find the first upcoming oil change km
+    // Next service: nearest pending reminder by dueAtKm
     String nextServiceLabel = '—';
-    if (profile != null && currentOdometer != null) {
-      if (currentOdometer < profile.firstOilChangeKm) {
-        final km = (profile.firstOilChangeKm - currentOdometer).round();
-        nextServiceLabel = 'Oil Change · $km km';
-      } else if (currentOdometer < profile.secondOilChangeKm) {
-        final km = (profile.secondOilChangeKm - currentOdometer).round();
-        nextServiceLabel = 'Oil Change · $km km';
-      } else {
+    if (currentOdometer != null) {
+      if (pendingReminders.isEmpty) {
         nextServiceLabel = 'Up to date';
+      } else {
+        final upcoming = pendingReminders
+            .where((r) => r.dueAtKm > currentOdometer)
+            .toList()
+          ..sort((a, b) => a.dueAtKm.compareTo(b.dueAtKm));
+        if (upcoming.isNotEmpty) {
+          final km = (upcoming.first.dueAtKm - currentOdometer).round();
+          nextServiceLabel = '${_serviceLabel(upcoming.first.type)} · $km km';
+        } else {
+          // All reminders are overdue — show the most recently overdue one
+          final overdue = [...pendingReminders]
+            ..sort((a, b) => b.dueAtKm.compareTo(a.dueAtKm));
+          nextServiceLabel = '${_serviceLabel(overdue.first.type)} · Overdue';
+        }
       }
     }
 
@@ -195,6 +203,26 @@ class MoreScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+String _serviceLabel(String type) {
+  switch (type) {
+    case 'oil_change_1':
+    case 'oil_change_2':
+      return 'Oil Change';
+    case 'chain_lube':
+      return 'Chain Lube';
+    case 'air_filter':
+      return 'Air Filter';
+    case 'spark_plug':
+      return 'Spark Plug';
+    case 'tire_pressure':
+      return 'Tire Pressure';
+    default:
+      return type
+          .replaceAll('_', ' ')
+          .replaceFirstMapped(RegExp(r'^\w'), (m) => m.group(0)!.toUpperCase());
   }
 }
 

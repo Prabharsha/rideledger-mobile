@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/constants/sample_data.dart';
+import '../../../data/models/maintenance_reminder_model.dart';
 import '../../../data/models/ride_session_model.dart';
+import '../../../shared/providers/maintenance_provider.dart';
+import '../../../shared/providers/repositories_provider.dart';
 import '../../../shared/providers/rides_provider.dart';
 import '../../../shared/providers/break_in_provider.dart';
 import '../../../shared/providers/bike_profile_provider.dart';
@@ -49,6 +51,8 @@ class _HomeContent extends ConsumerWidget {
     final profile = ref.watch(bikeProfileProvider).valueOrNull;
     final totalRiddenKm = ref.watch(totalRiddenKmProvider).valueOrNull ?? 0.0;
     final currentOdometerKm = profile?.currentOdometerKm(appTrackedKm: totalRiddenKm);
+    final pendingReminders =
+        ref.watch(pendingRemindersProvider).valueOrNull ?? [];
 
     // Today's aggregates
     final now = DateTime.now();
@@ -443,11 +447,14 @@ class _HomeContent extends ConsumerWidget {
                 ),
               ),
               const Spacer(),
-              Text(
-                'See all',
-                style: RLText.labelMd.copyWith(
-                  color: AppColors.amber,
-                  letterSpacing: 0.4,
+              GestureDetector(
+                onTap: () => context.push(RoutePaths.maintenance),
+                child: Text(
+                  'See all',
+                  style: RLText.labelMd.copyWith(
+                    color: AppColors.amber,
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ),
             ],
@@ -456,12 +463,46 @@ class _HomeContent extends ConsumerWidget {
 
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: RLSpacing.screenH),
-          child: Column(
-            children: SampleData.maintenance
-                .take(2)
-                .map((item) => _MaintenanceCard(item: item))
-                .toList(),
-          ),
+          child: pendingReminders.isEmpty
+              ? Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(RLSpacing.base),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: RLRadius.borderLg,
+                    border: Border.all(color: AppColors.border, width: 1),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 18,
+                        color: AppColors.success,
+                      ),
+                      const SizedBox(width: RLSpacing.sm),
+                      Text(
+                        'All services up to date.',
+                        style: RLText.bodySm
+                            .copyWith(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: pendingReminders.take(2).map((reminder) {
+                    return _ServiceReminderCard(
+                      reminder: reminder,
+                      currentKm: currentOdometerKm ?? 0,
+                      onMarkDone: () async {
+                        await ref
+                            .read(maintenanceRepositoryProvider)
+                            .markReminderCompleted(reminder.reminderId);
+                        ref.invalidate(pendingRemindersProvider);
+                        ref.invalidate(completedRemindersProvider);
+                      },
+                    );
+                  }).toList(),
+                ),
         ),
 
         // ── 5. RECENT RIDES SECTION ──────────────────────────────────────────
@@ -578,117 +619,200 @@ class _VerticalDivider extends StatelessWidget {
   }
 }
 
-// ── Maintenance Card widget ───────────────────────────────────────────────────
-class _MaintenanceCard extends StatelessWidget {
-  final SampleMaintenance item;
+// ── Service Reminder Card widget ──────────────────────────────────────────────
+class _ServiceReminderCard extends StatelessWidget {
+  const _ServiceReminderCard({
+    required this.reminder,
+    required this.currentKm,
+    required this.onMarkDone,
+  });
 
-  const _MaintenanceCard({required this.item});
+  final MaintenanceReminderModel reminder;
+  final double currentKm;
+  final VoidCallback onMarkDone;
+
+  static String _typeLabel(String type) {
+    switch (type) {
+      case 'oil_change_1':
+        return '1st Oil Change';
+      case 'oil_change_2':
+        return '2nd Oil Change';
+      case 'chain_lube':
+        return 'Chain Lubrication';
+      case 'air_filter':
+        return 'Air Filter Check';
+      case 'spark_plug':
+        return 'Spark Plug';
+      case 'tire_pressure':
+        return 'Tire Pressure';
+      default:
+        return type
+            .replaceAll('_', ' ')
+            .replaceFirstMapped(
+                RegExp(r'^\w'), (m) => m.group(0)!.toUpperCase());
+    }
+  }
+
+  static IconData _typeIcon(String type) {
+    switch (type) {
+      case 'oil_change_1':
+      case 'oil_change_2':
+        return Icons.water_drop_outlined;
+      case 'chain_lube':
+        return Icons.settings_outlined;
+      case 'air_filter':
+        return Icons.air;
+      case 'spark_plug':
+        return Icons.bolt;
+      case 'tire_pressure':
+        return Icons.circle_outlined;
+      default:
+        return Icons.build_outlined;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isOverdue = currentKm >= reminder.dueAtKm;
+    final kmRemaining =
+        (reminder.dueAtKm - currentKm).clamp(0, double.infinity);
+    final progress = (currentKm / reminder.dueAtKm).clamp(0.0, 1.0);
+    final statusColor = isOverdue ? AppColors.error : AppColors.amber;
+    final statusLabel = isOverdue ? 'Overdue' : '${kmRemaining.toInt()} km';
+    final statusBg =
+        isOverdue ? AppColors.errorSurface : AppColors.amberSurface;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AppColors.bgCard,
         borderRadius: RLRadius.borderLg,
-        border: Border.all(color: AppColors.border, width: 1),
+        border: Border.all(
+          color: isOverdue
+              ? AppColors.error.withValues(alpha: 0.35)
+              : AppColors.border,
+          width: 1,
+        ),
       ),
-      padding: const EdgeInsets.all(14),
-      child: Row(
+      padding: const EdgeInsets.all(RLSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
+          // Top row: icon + title/subtitle + status badge
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.bgCardHigh,
+                  borderRadius: RLRadius.borderSm,
+                ),
+                child: Icon(
+                  _typeIcon(reminder.type),
+                  size: RLSizes.iconMd,
+                  color: statusColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _typeLabel(reminder.type),
+                      style: RLText.bodySm.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Due at ${reminder.dueAtKm.toInt()} km',
+                      style:
+                          RLText.labelMd.copyWith(color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: RLSpacing.sm,
+                  vertical: RLSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: RLRadius.borderPill,
+                ),
+                child: Text(
+                  statusLabel,
+                  style: RLText.labelSm.copyWith(color: statusColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Progress bar
+          ClipRRect(
+            borderRadius: RLRadius.borderPill,
+            child: Container(
+              height: 3,
               color: AppColors.bgCardHigh,
-              borderRadius: RLRadius.borderSm,
-            ),
-            child: Icon(
-              item.icon,
-              size: RLSizes.iconMd,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  style: RLText.bodySm.copyWith(
-                    color: AppColors.textPrimary,
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: progress,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: RLRadius.borderPill,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  item.subtitle,
-                  style: RLText.labelMd.copyWith(
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          _MaintenanceStatusBadge(status: item.status, item: item),
+          const SizedBox(height: 8),
+          // Bottom row: km progress + mark done pill button
+          Row(
+            children: [
+              Text(
+                '${currentKm.toInt()} / ${reminder.dueAtKm.toInt()} km',
+                style: RLText.labelSm.copyWith(color: AppColors.textMuted),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: onMarkDone,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.oliveSurface,
+                    borderRadius: RLRadius.borderPill,
+                    border: Border.all(color: AppColors.oliveDim, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.check_rounded,
+                        size: 12,
+                        color: AppColors.olive,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Mark done',
+                        style: RLText.labelSm.copyWith(color: AppColors.olive),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class _MaintenanceStatusBadge extends StatelessWidget {
-  final MaintenanceStatus status;
-  final SampleMaintenance item;
-
-  const _MaintenanceStatusBadge({
-    required this.status,
-    required this.item,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    String label;
-    Color textColor;
-    Color bgColor;
-
-    switch (status) {
-      case MaintenanceStatus.done:
-        label = 'Done';
-        textColor = AppColors.olive;
-        bgColor = AppColors.oliveSurface;
-        break;
-      case MaintenanceStatus.overdue:
-        label = 'Due now';
-        textColor = AppColors.error;
-        bgColor = AppColors.errorSurface;
-        break;
-      case MaintenanceStatus.due:
-        label = 'Due now';
-        textColor = AppColors.error;
-        bgColor = AppColors.errorSurface;
-        break;
-      case MaintenanceStatus.upcoming:
-        final kmLeft = item.kmRemaining.toInt();
-        label = '$kmLeft km';
-        textColor = AppColors.amber;
-        bgColor = AppColors.amberSurface;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: RLSpacing.sm,
-        vertical: RLSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: RLRadius.borderPill,
-      ),
-      child: Text(
-        label,
-        style: RLText.labelSm.copyWith(color: textColor),
       ),
     );
   }

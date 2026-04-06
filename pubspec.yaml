@@ -62,10 +62,10 @@ dev_dependencies:
   isar_generator: ^3.1.0+1
   build_runner: ^2.4.6
   json_serializable: ^6.7.1
+  flutter_launcher_icons: ^0.14.3
+  image: ^4.2.0
 
 flutter:
   uses-material-design: true
-  # Assets will be uncommented when files are added
-  # assets:
-  #   - assets/images/
-  #   - assets/icons/
+  assets:
+    - assets/icon/
