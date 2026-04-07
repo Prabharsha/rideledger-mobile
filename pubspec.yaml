@@ -29,6 +29,7 @@ dependencies:
 
   # Maps
   flutter_map: ^8.2.2
+  flutter_map_cancellable_tile_provider: ^3.0.0
   latlong2: ^0.9.1
 
   # Voice

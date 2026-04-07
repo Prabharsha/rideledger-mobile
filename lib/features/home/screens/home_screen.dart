@@ -11,6 +11,7 @@ import '../../../shared/providers/repositories_provider.dart';
 import '../../../shared/providers/rides_provider.dart';
 import '../../../shared/providers/break_in_provider.dart';
 import '../../../shared/providers/bike_profile_provider.dart';
+import '../../../shared/providers/fuel_provider.dart';
 import '../../../shared/routing/route_paths.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -51,6 +52,7 @@ class _HomeContent extends ConsumerWidget {
     final profile = ref.watch(bikeProfileProvider).valueOrNull;
     final totalRiddenKm = ref.watch(totalRiddenKmProvider).valueOrNull ?? 0.0;
     final currentOdometerKm = profile?.currentOdometerKm(appTrackedKm: totalRiddenKm);
+    final tankFuel = ref.watch(tankFuelProvider).valueOrNull;
     final pendingReminders =
         ref.watch(pendingRemindersProvider).valueOrNull ?? [];
 
@@ -316,7 +318,44 @@ class _HomeContent extends ConsumerWidget {
           ),
         ),
 
-        // ── 3. BREAK-IN SECTION ─────────────────────────────────────────────
+        // ── 3. FUEL SECTION ──────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.only(
+            top: 24,
+            left: RLSpacing.screenH,
+            right: RLSpacing.screenH,
+            bottom: 8,
+          ),
+          child: Row(
+            children: [
+              Text(
+                'FUEL',
+                style: RLText.labelMd.copyWith(
+                  color: AppColors.textMuted,
+                  letterSpacing: 1.8,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => context.push(RoutePaths.fuel),
+                child: Text(
+                  'Refuel log \u2192',
+                  style: RLText.labelMd.copyWith(
+                    color: AppColors.amber,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: RLSpacing.screenH),
+          child: _HomeFuelCard(fuelState: tankFuel),
+        ),
+
+        // ── 4. BREAK-IN SECTION ─────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.only(
             top: 24,
@@ -548,6 +587,207 @@ class _HomeContent extends ConsumerWidget {
 
         // ── 6. BOTTOM PADDING ───────────────────────────────────────────────
         const SizedBox(height: 100),
+      ],
+    );
+  }
+}
+
+// ── Home Fuel Card ────────────────────────────────────────────────────────────
+
+class _HomeFuelCard extends StatelessWidget {
+  final TankFuelState? fuelState;
+  const _HomeFuelCard({required this.fuelState});
+
+  static String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inDays >= 1) return '${diff.inDays}d ago';
+    if (diff.inHours >= 1) return '${diff.inHours}h ago';
+    return '${diff.inMinutes}m ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fuel = fuelState;
+
+    if (fuel == null || !fuel.hasData) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(RLSpacing.base),
+        decoration: BoxDecoration(
+          color: AppColors.bgCard,
+          borderRadius: RLRadius.borderXl,
+          border: Border.all(color: AppColors.border, width: 1),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.local_gas_station_outlined,
+                size: 18, color: AppColors.textMuted),
+            const SizedBox(width: 10),
+            Text(
+              'No refuel logs yet. Add your first fill-up!',
+              style: RLText.bodySm.copyWith(color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final pct = fuel.percentFull;
+    final fuelColor = pct > 0.50
+        ? AppColors.success
+        : pct > 0.25
+            ? AppColors.amber
+            : AppColors.error;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: RLRadius.borderXl,
+        border: Border.all(color: AppColors.border, width: 1),
+      ),
+      padding: const EdgeInsets.all(RLSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: icon + liters left + % badge
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(Icons.local_gas_station_rounded, size: 18, color: fuelColor),
+              const SizedBox(width: 8),
+              Text(
+                '${fuel.litersRemaining.toStringAsFixed(1)} L remaining',
+                style: RLText.bodyMd.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: RLSpacing.sm,
+                  vertical: RLSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: fuelColor.withValues(alpha: 0.15),
+                  borderRadius: RLRadius.borderPill,
+                ),
+                child: Text(
+                  '${(pct * 100).round()}%',
+                  style: RLText.labelSm.copyWith(
+                    color: fuelColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Tank level bar
+          ClipRRect(
+            borderRadius: RLRadius.borderPill,
+            child: Container(
+              height: 7,
+              width: double.infinity,
+              color: AppColors.bgCardHigh,
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: pct.clamp(0.0, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: fuelColor,
+                    borderRadius: RLRadius.borderPill,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Stat row: range - economy - last fill
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _FuelMiniStat(
+                    value: '~${fuel.rangeKm.toStringAsFixed(0)}',
+                    unit: 'km',
+                    label: 'Range',
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  color: AppColors.border,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+                Expanded(
+                  child: _FuelMiniStat(
+                    value: fuel.economyKmPerL.toStringAsFixed(1),
+                    unit: 'km/L',
+                    label: 'Economy',
+                    color: AppColors.olive,
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  color: AppColors.border,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+                Expanded(
+                  child: _FuelMiniStat(
+                    value: fuel.lastRefuelDate != null
+                        ? _timeAgo(fuel.lastRefuelDate!)
+                        : '--',
+                    unit: '',
+                    label: 'Last fill',
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FuelMiniStat extends StatelessWidget {
+  final String value, unit, label;
+  final Color color;
+
+  const _FuelMiniStat({
+    required this.value,
+    required this.unit,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(value, style: RLText.numSm.copyWith(color: color)),
+            if (unit.isNotEmpty) ...[
+              const SizedBox(width: 2),
+              Text(unit,
+                  style: RLText.labelSm.copyWith(color: AppColors.textMuted)),
+            ],
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(label,
+            style: RLText.labelSm.copyWith(color: AppColors.textMuted)),
       ],
     );
   }

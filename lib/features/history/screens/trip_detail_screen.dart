@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
@@ -129,6 +130,7 @@ class _TripDetailContentState extends ConsumerState<_TripDetailContent> {
           SliverToBoxAdapter(
             child: _RouteMapSection(
               routePointsAsync: routePointsAsync,
+              warningsAsync: warningsAsync,
               mapController: _mapController,
               focusedLocation: _focusedLocation,
             ),
@@ -493,11 +495,13 @@ class _SpeedChartSection extends StatelessWidget {
 class _RouteMapSection extends StatefulWidget {
   const _RouteMapSection({
     required this.routePointsAsync,
+    required this.warningsAsync,
     required this.mapController,
     required this.focusedLocation,
   });
 
   final AsyncValue<List<RoutePointModel>> routePointsAsync;
+  final AsyncValue<List<WarningEventModel>> warningsAsync;
   final MapController mapController;
   final LatLng? focusedLocation;
 
@@ -519,8 +523,48 @@ class _RouteMapSectionState extends State<_RouteMapSection> {
     });
   }
 
+  /// Find the closest route point to a warning's timestamp.
+  LatLng? _positionForWarning(
+      WarningEventModel w, List<RoutePointModel> sorted) {
+    if (sorted.isEmpty) return null;
+    RoutePointModel? best;
+    int bestGap = 1 << 30;
+    for (final p in sorted) {
+      final gap = (p.timestamp.difference(w.timestamp).inSeconds).abs();
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = p;
+      }
+    }
+    return best == null ? null : LatLng(best.latitude, best.longitude);
+  }
+
+  Color _warningColor(String type) {
+    switch (type) {
+      case 'overspeed':
+        return AppColors.error;
+      case 'cooldown':
+        return AppColors.amber;
+      default:
+        return AppColors.amber;
+    }
+  }
+
+  IconData _warningIcon(String type) {
+    switch (type) {
+      case 'overspeed':
+        return Icons.speed_rounded;
+      case 'cooldown':
+        return Icons.thermostat_rounded;
+      default:
+        return Icons.warning_amber_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final warnings = widget.warningsAsync.valueOrNull ?? [];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -529,72 +573,133 @@ class _RouteMapSectionState extends State<_RouteMapSection> {
           padding: const EdgeInsets.symmetric(horizontal: RLSpacing.screenH),
           child: ClipRRect(
             borderRadius: RLRadius.borderLg,
-            child: SizedBox(
-              height: 280,
-              child: widget.routePointsAsync.when(
-                loading: () => Container(
-                  color: AppColors.bgCard,
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                        color: AppColors.amber, strokeWidth: 2),
-                  ),
-                ),
-                error: (_, __) => _mapPlaceholder('Could not load route'),
-                data: (points) {
-                  if (points.length < 2) {
-                    return _mapPlaceholder('Route not recorded');
-                  }
-
-                  final latLngs = points
-                      .map((p) => LatLng(p.latitude, p.longitude))
-                      .toList();
-                  final bounds = LatLngBounds.fromPoints(latLngs);
-
-                  return FlutterMap(
-                    mapController: widget.mapController,
-                    options: MapOptions(
-                      initialCameraFit: CameraFit.bounds(
-                        bounds: bounds,
-                        padding: const EdgeInsets.all(24),
-                      ),
-                      interactionOptions: const InteractionOptions(
-                        flags: InteractiveFlag.none,
-                      ),
+            // NotificationListener absorbs scroll notifications so the parent
+            // CustomScrollView doesn't steal gestures from the map.
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (_) => true,
+              child: SizedBox(
+                height: 280,
+                child: widget.routePointsAsync.when(
+                  loading: () => Container(
+                    color: AppColors.bgCard,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                          color: AppColors.amber, strokeWidth: 2),
                     ),
-                    children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.example.ride_ledger',
-                      ),
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: latLngs,
-                            color: AppColors.slate,
-                            strokeWidth: 3.5,
+                  ),
+                  error: (_, __) => _mapPlaceholder('Could not load route'),
+                  data: (points) {
+                    if (points.length < 2) {
+                      return _mapPlaceholder('Route not recorded');
+                    }
+
+                    final sorted = List<RoutePointModel>.from(points)
+                      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+                    final latLngs = sorted
+                        .map((p) => LatLng(p.latitude, p.longitude))
+                        .toList();
+                    final rawBounds = LatLngBounds.fromPoints(latLngs);
+
+                    // Ensure minimum bounds span (0.003°) for short rides
+                    const minSpan = 0.003;
+                    final latSpan = rawBounds.north - rawBounds.south;
+                    final lngSpan = rawBounds.east - rawBounds.west;
+                    final safeBounds = latSpan >= minSpan && lngSpan >= minSpan
+                        ? rawBounds
+                        : LatLngBounds(
+                            LatLng(
+                              rawBounds.south - (minSpan - latSpan) / 2,
+                              rawBounds.west - (minSpan - lngSpan) / 2,
+                            ),
+                            LatLng(
+                              rawBounds.north + (minSpan - latSpan) / 2,
+                              rawBounds.east + (minSpan - lngSpan) / 2,
+                            ),
+                          );
+
+                    // Build warning markers on the route
+                    final warningMarkers = <Marker>[];
+                    for (final w in warnings) {
+                      final pos = _positionForWarning(w, sorted);
+                      if (pos == null) continue;
+                      final color = _warningColor(w.type);
+                      final icon = _warningIcon(w.type);
+                      warningMarkers.add(Marker(
+                        point: pos,
+                        width: 28,
+                        height: 28,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                width: 1.5),
                           ),
-                        ],
+                          child:
+                              Icon(icon, size: 14, color: Colors.white),
+                        ),
+                      ));
+                    }
+
+                    return FlutterMap(
+                      mapController: widget.mapController,
+                      options: MapOptions(
+                        initialCameraFit: CameraFit.bounds(
+                          bounds: safeBounds,
+                          padding: const EdgeInsets.all(36),
+                          maxZoom: 17,
+                        ),
+                        // Dark navy background while tiles load
+                        backgroundColor: const Color(0xFF1a1a2e),
+                        interactionOptions: const InteractionOptions(
+                          flags: InteractiveFlag.pinchZoom |
+                              InteractiveFlag.drag |
+                              InteractiveFlag.doubleTapZoom,
+                        ),
                       ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: latLngs.first,
-                            width: 20,
-                            height: 20,
-                            child: const _MapDot(color: AppColors.success),
-                          ),
-                          Marker(
-                            point: latLngs.last,
-                            width: 20,
-                            height: 20,
-                            child: const _MapDot(color: AppColors.amber),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
+                      children: [
+                        // MapTiler dark tiles with CancellableNetworkTileProvider
+                        // (uses Dio / platform HTTP — handles Android TLS properly)
+                        TileLayer(
+                          urlTemplate:
+                              'https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}.png?key=wagCtzs29DAFMWPhWiPj',
+                          userAgentPackageName: 'com.example.ride_ledger',
+                          tileProvider: CancellableNetworkTileProvider(),
+                        ),
+                        // Route polyline
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: latLngs,
+                              color: AppColors.amber,
+                              strokeWidth: 3.5,
+                            ),
+                          ],
+                        ),
+                        // Start / end + warning markers
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: latLngs.first,
+                              width: 22,
+                              height: 22,
+                              child:
+                                  const _MapDot(color: AppColors.success),
+                            ),
+                            Marker(
+                              point: latLngs.last,
+                              width: 22,
+                              height: 22,
+                              child: const _MapDot(color: AppColors.amber),
+                            ),
+                            ...warningMarkers,
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),

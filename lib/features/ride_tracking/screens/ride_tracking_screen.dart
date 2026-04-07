@@ -15,6 +15,7 @@ import '../../../shared/providers/repositories_provider.dart';
 import '../../../shared/providers/rides_provider.dart';
 import '../../../shared/providers/bike_profile_provider.dart';
 import '../../../shared/providers/break_in_provider.dart';
+import '../../../shared/providers/fuel_provider.dart';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Dashboard Palette — night (dark) and day (light)
@@ -162,10 +163,10 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
 
   // ── Gear estimation from speed ─────────────────────────────────────────────
   int _estimateGear(double kmh) {
-    if (kmh < 10) return 1;
-    if (kmh < 22) return 2;
-    if (kmh < 38) return 3;
-    if (kmh < 58) return 4;
+    if (kmh < 8) return 1;
+    if (kmh < 18) return 2;
+    if (kmh < 30) return 3;
+    if (kmh < 42) return 4;
     return 5;
   }
 
@@ -631,7 +632,13 @@ class _RideTrackingState extends ConsumerState<RideTrackingScreen> {
               formatTime: _formatElapsed,
               palette: p,
             ),
-            const SizedBox(height: RLSpacing.md),
+            const SizedBox(height: 8),
+            _FuelStrip(
+              distanceKm: _distanceKm,
+              isRiding: _isRiding,
+              palette: p,
+            ),
+            const SizedBox(height: 8),
             _BreakInBar(palette: p),
             const SizedBox(height: RLSpacing.lg),
           ],
@@ -1462,6 +1469,161 @@ class _MetricTile extends StatelessWidget {
                 ],
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Fuel strip — live tank level + range, adjusted for current ride km
+// ════════════════════════════════════════════════════════════════════════════
+
+class _FuelStrip extends ConsumerWidget {
+  final double distanceKm;
+  final bool isRiding;
+  final _Palette palette;
+
+  const _FuelStrip({
+    required this.distanceKm,
+    required this.isRiding,
+    required this.palette,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = palette;
+    final fuelState = ref.watch(tankFuelProvider).valueOrNull;
+
+    // Not enough data yet — show minimal placeholder
+    if (fuelState == null || !fuelState.hasData) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: RLSpacing.md),
+        padding: const EdgeInsets.symmetric(
+            horizontal: RLSpacing.base, vertical: 10),
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: RLRadius.borderLg,
+          border: Border.all(color: p.border),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.local_gas_station_outlined, size: 15, color: p.textMut),
+            const SizedBox(width: 8),
+            Text(
+              'Add a refuel log to see tank level',
+              style: TextStyle(fontSize: 12, color: p.textMut),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Subtract live ride consumption from stored balance
+    final liveConsumed = fuelState.economyKmPerL > 0
+        ? distanceKm / fuelState.economyKmPerL
+        : 0.0;
+    final liveL = (fuelState.litersRemaining - liveConsumed)
+        .clamp(0.0, fuelState.tankCapacityL);
+    final livePct = liveL / fuelState.tankCapacityL;
+    final liveRange =
+        fuelState.economyKmPerL > 0 ? liveL * fuelState.economyKmPerL : 0.0;
+
+    // Color by level: green >50%, amber 25–50%, red <25%
+    final fuelColor = livePct > 0.50
+        ? const Color(0xFF5BAE8C)
+        : livePct > 0.25
+            ? const Color(0xFFC9964A)
+            : const Color(0xFFBF5A50);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: RLSpacing.md),
+      padding: const EdgeInsets.symmetric(
+          horizontal: RLSpacing.base, vertical: 10),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: RLRadius.borderLg,
+        border: Border.all(color: p.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Fuel icon
+          Icon(Icons.local_gas_station_rounded, size: 16, color: fuelColor),
+          const SizedBox(width: 10),
+
+          // Tank bar + liters/range labels
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '${liveL.toStringAsFixed(1)} L',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: fuelColor,
+                      ),
+                    ),
+                    Text(
+                      ' / ${fuelState.tankCapacityL.toStringAsFixed(1)} L',
+                      style: TextStyle(fontSize: 11, color: p.textMut),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '~${liveRange.toStringAsFixed(0)} km range',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: p.textSec,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: Container(
+                    height: 4,
+                    color: p.border,
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: livePct.clamp(0.0, 1.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: fuelColor,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Economy column
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                fuelState.economyKmPerL.toStringAsFixed(1),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: p.text,
+                ),
+              ),
+              Text(
+                'km/L',
+                style: TextStyle(fontSize: 10, color: p.textMut),
+              ),
+            ],
           ),
         ],
       ),
