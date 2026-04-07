@@ -12,6 +12,7 @@
         "flutter",
         "flutter_local_notifications",
         "flutter_map",
+        "flutter_map_cancellable_tile_provider",
         "flutter_riverpod",
         "flutter_tts",
         "geolocator",
@@ -306,6 +307,16 @@
       "version": "0.9.1",
       "dependencies": [
         "intl"
+      ]
+    },
+    {
+      "name": "flutter_map_cancellable_tile_provider",
+      "version": "3.1.1",
+      "dependencies": [
+        "dio",
+        "flutter",
+        "flutter_map",
+        "meta"
       ]
     },
     {
@@ -1182,6 +1193,19 @@
       ]
     },
     {
+      "name": "dio",
+      "version": "5.9.2",
+      "dependencies": [
+        "async",
+        "collection",
+        "dio_web_adapter",
+        "http_parser",
+        "meta",
+        "mime",
+        "path"
+      ]
+    },
+    {
       "name": "proj4dart",
       "version": "2.1.0",
       "dependencies": [
@@ -1509,6 +1533,16 @@
       "version": "3.0.2",
       "dependencies": [
         "meta"
+      ]
+    },
+    {
+      "name": "dio_web_adapter",
+      "version": "2.1.2",
+      "dependencies": [
+        "dio",
+        "http_parser",
+        "meta",
+        "web"
       ]
     },
     {
